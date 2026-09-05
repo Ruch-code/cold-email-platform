@@ -21,4 +21,4 @@ jobs:
 
       - name: Trigger Netlify production deploy
         run: |
-          curl -s -X POST "${{ secrets.NETLIFY_BUILD_WEBHOOK }}" | jq -r '. || "queued"'
+          curl -s -X POST "${{ secrets.NETLIFY_BUILD_WEBHOOK }}"
