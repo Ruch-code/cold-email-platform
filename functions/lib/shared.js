@@ -11,11 +11,13 @@ function corsHeaders() {
   };
 }
 
+/** AWS-lambda-style response for Netlify function compatibility. */
 function json(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
+  return {
+    statusCode: status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-  });
+    body: JSON.stringify(body),
+  };
 }
 
 function error(msg, status = 400) {

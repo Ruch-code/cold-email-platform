@@ -1,4 +1,4 @@
-const { json, error } = require('./_shared');
+const { json, error } = require('./lib/shared');
 
 /**
  * Tailor Resume

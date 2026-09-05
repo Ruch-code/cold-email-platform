@@ -1,4 +1,4 @@
-const { json, error } = require('./_shared');
+const { json, error } = require('./lib/shared');
 const mammoth = require('mammoth');
 
 /**
@@ -15,12 +15,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return error('Method not allowed', 405);
 
   try {
-    const { fileBuffer, fileName } = await parseMultipart(event.body, event.headers['content-type'] || '');
+    const file = await parseMultipart(event, event.headers['content-type'] || '');
+    if (!file) return error('No file provided in upload');
+    const { fileBuffer, fileName } = file;
     let text = '';
-
-    if (!fileBuffer || !fileBuffer.length) {
-      return error('No file provided');
-    }
 
     if (/\.txt$/i.test(fileName) || /text\/plain/i.test((fileName))) {
       text = fileBuffer.toString('utf8');
@@ -39,10 +37,11 @@ exports.handler = async (event) => {
   }
 };
 
-function parseMultipart(rawBody, contentType) {
-  // Netlify sends the raw multipart body base64-encoded
-  const isB64 = contentType.includes('multipart/form-data');
-  const raw = isB64 ? Buffer.from(rawBody, 'base64') : Buffer.from(rawBody || '', 'utf8');
+function parseMultipart(event, contentType) {
+  // Netlify base64-encodes the raw multipart body when a real upload happens.
+  const isB64 = event.isBase64Encoded;
+  const rawBody = event.body || '';
+  const raw = isB64 ? Buffer.from(rawBody, 'base64') : Buffer.from(rawBody, 'utf8');
   const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
   if (!boundaryMatch) return { fileBuffer: raw, fileName: 'upload.bin' };
 
@@ -52,13 +51,11 @@ function parseMultipart(rawBody, contentType) {
 
   const part = parts[0];
   const fn = (part.match(/filename="([^"]+)"/i) || [])[1] || 'upload.bin';
-  // bytes between the header block and the closing boundary
   const headerEnd = part.indexOf('\r\n\r\n');
   let bodyBytes;
   if (headerEnd >= 0) {
     bodyBytes = Buffer.from(part.slice(headerEnd + 4), 'latin1');
-    // trim trailing \r\n--...\r\n
-    bodyBytes = bodyBytes.subarray(0, bodyBytes.length - 2);
+    bodyBytes = bodyBytes.subarray(0, Math.max(0, bodyBytes.length - 2));
   } else {
     bodyBytes = Buffer.from(part, 'latin1');
   }
