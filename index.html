@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HiredHunter — Cold Email Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-logo">H</div>
+        <div class="brand-text">
+          <strong>HiredHunter</strong>
+          <span>Cold Email Platform</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" data-view="scanner">
+          <span class="nav-icon">🔍</span> Job Scanner
+        </button>
+        <button class="nav-item" data-view="scraper">
+          <span class="nav-icon">🕷️</span> Web Scraper
+        </button>
+        <button class="nav-item" data-view="resume">
+          <span class="nav-icon">📄</span> Resume Booster
+        </button>
+        <button class="nav-item" data-view="email">
+          <span class="nav-icon">✉️</span> Cold Email
+        </button>
+        <button class="nav-item" data-view="database">
+          <span class="nav-icon">🗃️</span> Database
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="mini-stat">
+          <span>Leads Saved</span>
+          <strong id="sidebar-leads">0</strong>
+        </div>
+        <button class="btn ghost small" id="export-data">⬇ Export Data</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- DASHBOARD -->
+      <section id="view-dashboard" class="view active">
+        <header class="page-head">
+          <div>
+            <h1>Dashboard</h1>
+            <p class="sub">Your job hunt, all in one place.</p>
+          </div>
+          <button class="btn primary" data-goto="scanner">+ Scan New Jobs</button>
+        </header>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Jobs Found</div>
+            <div class="stat-value" id="stat-jobs">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Scraped Listings</div>
+            <div class="stat-value" id="stat-scraped">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Emails Sent</div>
+            <div class="stat-value" id="stat-emails">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Recruiters Contacted</div>
+            <div class="stat-value" id="stat-contacted">0</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>🔐 Step 1 — Add your API keys</h3>
+          <p class="muted">Powered by <b>Resend</b> for sending emails and <b>OpenAI</b> for AI resume tailoring & email generation.</p>
+          <form id="settings-form" class="settings-form">
+            <label>Resend API Key
+              <input type="password" id="set-resend" placeholder="re_..." />
+            </label>
+            <label>OpenAI API Key (optional)
+              <input type="password" id="set-openai" placeholder="sk-..." />
+            </label>
+            <button class="btn primary" type="submit">Save Keys</button>
+            <span class="form-msg" id="settings-msg"></span>
+          </form>
+          <p class="muted small">⚠️ Keys stored in your browser <b>only</b>. On production, set them as Netlify env vars instead — the Netlify functions read <code>RESEND_API_KEY</code> & <code>OPENAI_API_KEY</code> automatically.</p>
+        </div>
+
+        <div class="panel">
+          <h3>🚀 How it works</h3>
+          <ol class="steps">
+            <li><b>Scan</b> — enter keywords (e.g. "React, Node, remote") and find matching job opportunities.</li>
+            <li><b>Scrape</b> — drop a careers page URL to extract structured job listings automatically.</li>
+            <li><b>Boost</b> — upload your resume once; it gets tailored per job description keeping your strongest keywords.</li>
+            <li><b>Email</b> — generate and send a personalized cold email to each recruiter.</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- JOB SCANNER -->
+      <section id="view-scanner" class="view">
+        <header class="page-head">
+          <div>
+            <h1>Job Scanner</h1>
+            <p class="sub">Search opportunities by keyword, review, and save to the database.</p>
+          </div>
+        </header>
+
+        <div class="panel">
+          <form id="scan-form" class="scan-form">
+            <div class="field-row">
+              <label class="grow">Desired Keywords
+                <input type="text" id="scan-keywords" placeholder='e.g. "React, Node.js, Remote, Fintech"' />
+              </label>
+              <label class="grow">Location (optional)
+                <input type="text" id="scan-location" placeholder="e.g. London, Remote, US" />
+              </label>
+              <label>Role / Title
+                <input type="text" id="scan-role" placeholder="e.g. Frontend Engineer" />
+              </label>
+            </div>
+            <div class="field-row">
+              <label>Source
+                <select id="scan-source">
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="indeed">Indeed</option>
+                  <option value="greenhouse">Greenhouse</option>
+                  <option value="lever">Lever</option>
+                  <option value="direct">Direct / Company Site</option>
+                  <option value="aggregator">Aggregator</option>
+                </select>
+              </label>
+              <button class="btn primary" type="submit">🔍 Scan Matching Jobs</button>
+              <button class="btn" type="button" id="scan-save-query">＋ Save as Keyword Alert</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Matching Opportunities</h3>
+            <span class="badge" id="scan-count">0</span>
+          </div>
+          <p class="muted small" id="scan-hint">Enter keywords above and hit <b>Scan</b>.</p>
+          <div id="scan-results" class="card-list"></div>
+        </div>
+      </section>
+
+      <!-- WEB SCRAPER -->
+      <section id="view-scraper" class="view">
+        <header class="page-head">
+          <div>
+            <h1>Web Scraper</h1>
+            <p class="sub">Extract structured job listings from any careers page.</p>
+          </div>
+        </header>
+
+        <div class="panel">
+          <form id="scrape-form" class="scan-form">
+            <label class="grow">Careers / Job Listing URL
+              <input type="url" id="scrape-url" placeholder="https://company.com/careers" />
+            </label>
+            <button class="btn primary" type="submit">🕷️ Scrape & Structure</button>
+          </form>
+          <p class="muted small">Works best with Greenhouse, Lever, Workable, Breezy, and generic HTML listing pages. Returns structured JSON fields.</p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Structured Data</h3>
+            <span class="badge" id="scrape-count">0</span>
+          </div>
+          <div class="scrape-actions">
+            <button class="btn small" id="scrape-copy">📋 Copy JSON</button>
+            <button class="btn small" id="scrape-save-all">💾 Save All to Database</button>
+          </div>
+          <div id="scrape-results" class="card-list"></div>
+          <pre id="scrape-json" class="json-out hidden"></pre>
+        </div>
+      </section>
+
+      <!-- RESUME BOOSTER -->
+      <section id="view-resume" class="view">
+        <header class="page-head">
+          <div>
+            <h1>Resume Booster</h1>
+            <p class="sub">Upload once, tailor per job. Keeps your keywords, matches the JD.</p>
+          </div>
+        </header>
+
+        <div class="panel">
+          <h3>Base Resume</h3>
+          <p class="muted small">Upload your master resume (docx, pdf, or txt). We extract the text and reuse it as the source for tailoring.</p>
+          <form id="resume-form" class="resume-form">
+            <label class="file-drop">
+              <input type="file" id="resume-file" accept=".docx,.pdf,.txt,.doc" />
+              <span class="drop-inner">
+                <strong id="resume-file-label">📎 Click or drop your resume</strong>
+                <span class="muted small">Only stored locally & sent to the Netlify function for processing.</span>
+              </span>
+            </label>
+            <button class="btn primary" type="submit">Upload & Parse</button>
+          </form>
+          <div id="resume-base-preview" class="preview-box hidden">
+            <strong>Extracted base resume:</strong>
+            <pre id="resume-base-text"></pre>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Tailor to a Job Description</h3>
+          <label>Job Description
+            <textarea id="resume-jd" rows="8" placeholder="Paste the full job description here..."></textarea>
+          </label>
+          <label>Keywords to prioritize (comma separated)
+            <input type="text" id="resume-keywords" placeholder="e.g. React, TypeScript, AWS, CI/CD" />
+          </label>
+          <div class="toggle-row">
+            <label class="toggle">
+              <input type="checkbox" id="resume-keep-keywords" checked />
+              <span>Strictly keep matched keywords in the tailored resume</span>
+            </label>
+          </div>
+          <button class="btn primary" id="resume-tailor" type="button">✨ Generate Tailored Resume</button>
+          <div class="form-msg" id="resume-msg"></div>
+          <div class="preview-box hidden" id="resume-tailor-preview">
+            <strong>Tailored resume:</strong>
+            <div class="tailor-actions">
+              <button class="btn small" id="resume-copy">📋 Copy</button>
+              <button class="btn small" id="resume-download">⬇ Download .txt</button>
+            </div>
+            <textarea id="resume-tailor-text"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- COLD EMAIL -->
+      <section id="view-email" class="view">
+        <header class="page-head">
+          <div>
+            <h1>Cold Email Engine</h1>
+            <p class="sub">Craft and send personalized emails to recruiters.</p>
+          </div>
+        </header>
+
+        <div class="panel">
+          <form id="email-settings" class="settings-form">
+            <label>Your Name
+              <input type="text" id="email-name" placeholder="Jane Doe" />
+            </label>
+            <label>Your Email (sender)
+              <input type="email" id="email-from" placeholder="jane@example.com" />
+            </label>
+            <label>Your Headline / Externship
+              <input type="text" id="email-headline" placeholder="e.g. Final-year CS student @ University of XYZ" />
+            </label>
+          </form>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Compose</h3>
+          </div>
+          <label>Recruiter Email
+            <input type="email" id="email-to" placeholder="recruiter@company.com" />
+          </label>
+          <label>Recruiter Name (optional)
+            <input type="text" id="email-recipient" placeholder="Alex" />
+          </label>
+          <label>Company
+            <input type="text" id="email-company" placeholder="Acme Corp" />
+          </label>
+          <label>Role being applied to
+            <input type="text" id="email-role" placeholder="Frontend Engineer" />
+          </label>
+          <label>Why you're a fit (optional, from your resume keywords)
+            <textarea id="email-fit" rows="3" placeholder="e.g. 3 years React/TypeScript, built X..." ></textarea>
+          </label>
+          <div class="email-actions">
+            <button class="btn" id="email-generate" type="button">✨ Generate Draft</button>
+            <button class="btn primary" id="email-send" type="button">✉️ Send Email</button>
+          </div>
+          <div class="form-msg" id="email-msg"></div>
+          <label>Draft (editable)
+            <textarea id="email-body" rows="10" placeholder="Your tailored email draft appears here..."></textarea>
+          </label>
+        </div>
+
+        <div class="panel">
+          <h3>Sent Log</h3>
+          <div id="email-log" class="card-list"></div>
+        </div>
+      </section>
+
+      <!-- DATABASE -->
+      <section id="view-database" class="view">
+        <header class="page-head">
+          <div>
+            <h1>Database</h1>
+            <p class="sub">All saved leads, jobs and scraped listings.</p>
+          </div>
+          <button class="btn primary" id="db-export">⬇ Export JSON</button>
+        </header>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Recruiters & Leads</h3>
+            <span class="badge" id="db-recruiters-count">0</span>
+          </div>
+          <div id="db-recruiters" class="card-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Saved Jobs</h3>
+            <span class="badge" id="db-jobs-count">0</span>
+          </div>
+          <div id="db-jobs" class="card-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

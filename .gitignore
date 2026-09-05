@@ -1,0 +1,8 @@
+node_modules
+.netlify
+dist
+resumes/uploads/*
+!resumes/uploads/.gitkeep
+.env
+.DS_Store
+npm-debug.log

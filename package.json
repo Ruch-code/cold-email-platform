@@ -1,0 +1,17 @@
+{
+  "name": "cold-email-platform",
+  "version": "1.0.0",
+  "description": "Netlify-hosted cold emailing platform for job opportunities",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'static site - no build step required'"
+  },
+  "dependencies": {
+    "@netlify/functions": "^2.8.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "cheerio": "^1.0.0",
+    "mammoth": "^1.8.0",
+    "resend": "^4.0.1"
+  },
+  "devDependencies": {}
+}
