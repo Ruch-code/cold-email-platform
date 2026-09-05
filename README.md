@@ -36,3 +36,4 @@ Create `.env` (see `.env.example`):
 2. In Netlify, **Add new site → Import from Git** and pick this repo.
 3. Set the env vars above.
 4. Deploy — any push to `main` auto-deploys.
+# auto-deploy test
