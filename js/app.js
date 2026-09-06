@@ -1,5 +1,13 @@
 /* <frontend JS env injected by Netlify function build when present> */
 
+// API base URL - auto-detect platform
+const API_BASE = (() => {
+  const hostname = window.location.hostname;
+  if (hostname.includes('netlify.app') || hostname.includes('netlify.com')) return '/.netlify/functions';
+  if (hostname.includes('vercel.app') || hostname.includes('vercel.com')) return '/api';
+  return '/.netlify/functions'; // default to Netlify for local dev
+})();
+
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
@@ -119,7 +127,7 @@ async function checkAuthState() {
 
 async function getCurrentUser() {
   try {
-    const res = await fetch('/.netlify/functions/auth-me');
+    const res = await fetch('${API_BASE}/auth-me');
     const data = await res.json();
     return data.user || null;
   } catch { return null; }
@@ -153,7 +161,7 @@ function showLoggedIn(user) {
 
 async function checkUserAccess(email) {
   try {
-    const res = await fetch('/.netlify/functions/auth-check-access', {
+    const res = await fetch('${API_BASE}/auth-check-access', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -214,7 +222,7 @@ $('#login-form').addEventListener('submit', async (e) => {
   const msg = $('#login-msg');
   msg.textContent = '';
   try {
-    const res = await fetch('/.netlify/functions/auth-login', {
+    const res = await fetch('${API_BASE}/auth-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: $('#login-email').value, password: $('#login-password').value })
@@ -241,7 +249,7 @@ $('#signup-form').addEventListener('submit', async (e) => {
     return;
   }
   try {
-    const res = await fetch('/.netlify/functions/auth-signup', {
+    const res = await fetch('${API_BASE}/auth-signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -262,7 +270,7 @@ $('#signup-form').addEventListener('submit', async (e) => {
 
 $('#btn-logout').addEventListener('click', async () => {
   try {
-    await fetch('/.netlify/functions/auth-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    await fetch('${API_BASE}/auth-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
     showLoggedOut();
     DB.clear();
     renderDashboard();
@@ -295,7 +303,7 @@ async function runScan() {
   btn.disabled = true; btn.textContent = 'Scanning...';
   const payload = { keywords, location: $('#scan-location').value.trim(), role: $('#scan-role').value.trim(), source: $('#scan-source').value };
   try {
-    const res = await fetch('/.netlify/functions/job-scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const res = await fetch('${API_BASE}/job-scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Scan failed');
     $('#scan-count').textContent = data.jobs.length;
@@ -379,7 +387,7 @@ $('#scrape-form').addEventListener('submit', async (e) => {
   const btn = $('#scrape-form .btn');
   btn.disabled = true; btn.textContent = 'Scraping...';
   try {
-    const res = await fetch('/.netlify/functions/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+    const res = await fetch('${API_BASE}/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Scrape failed');
     renderScrapeResults(data.jobs || []);
@@ -425,7 +433,7 @@ $('#resume-form').addEventListener('submit', async (e) => {
   btn.disabled = true; btn.textContent = 'Extracting...';
   try {
     const form = new FormData(); form.append('file', file);
-    const res = await fetch('/.netlify/functions/extract-resume', { method: 'POST', body: form });
+    const res = await fetch('${API_BASE}/extract-resume', { method: 'POST', body: form });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Extraction failed');
     baseResumeText = data.text || '';
@@ -448,7 +456,7 @@ $('#resume-tailor').addEventListener('click', async () => {
   const btn = $('#resume-tailor'); btn.disabled = true; btn.textContent = 'Tailoring...';
   const msg = $('#resume-msg'); msg.className = 'form-msg'; msg.textContent = '';
   try {
-    const res = await fetch('/.netlify/functions/tailor-resume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: baseResumeText, jd, keywords: kw.split(',').map(s => s.trim()).filter(Boolean), keepKeywords: $('#resume-keep-keywords').checked }) });
+    const res = await fetch('${API_BASE}/tailor-resume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: baseResumeText, jd, keywords: kw.split(',').map(s => s.trim()).filter(Boolean), keepKeywords: $('#resume-keep-keywords').checked }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Tailoring failed');
     $('#resume-tailor-preview').classList.remove('hidden');
@@ -478,7 +486,7 @@ $('#email-generate').addEventListener('click', async () => {
   const payload = { toName: $('#email-recipient').value.trim(), company: $('#email-company').value.trim(), role: $('#email-role').value.trim(), headline: $('#email-headline').value.trim(), fit: $('#email-fit').value.trim(), senderName: $('#email-name').value.trim() };
   if (!payload.company || !payload.role) return toast('Enter company and role', true);
   try {
-    const res = await fetch('/.netlify/functions/generate-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const res = await fetch('${API_BASE}/generate-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Generation failed');
     $('#email-body').value = data.body; msg.className = 'form-msg ok'; msg.textContent = '✨ Draft generated';
@@ -493,7 +501,7 @@ $('#email-send').addEventListener('click', async () => {
   const subject = body.split('\n')[0].replace(/^Subject:\s*/i, '') || `Application — ${$('#email-role').value}`;
   try {
     const s = await DB.getAll('settings');
-    const res = await fetch('/.netlify/functions/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, from: $('#email-from').value || s.senderEmail, subject, body, toName: $('#email-recipient').value, apiKey: s.resendKey }) });
+    const res = await fetch('${API_BASE}/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, from: $('#email-from').value || s.senderEmail, subject, body, toName: $('#email-recipient').value, apiKey: s.resendKey }) });
     const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Send failed');
     await DB.insert('emails', { id: uid(), to, toName: $('#email-recipient').value, company: $('#email-company').value, role: $('#email-role').value, subject, body, sentAt: new Date().toISOString() });
     msg.className = 'form-msg ok'; msg.textContent = '✓ Sent!'; toast('Email sent ✓'); renderEmailLog(); refreshStatCounts();
@@ -514,7 +522,7 @@ $('#cl-generate').addEventListener('click', async () => {
   if (!$('#cl-jd').value.trim() || !$('#cl-company').value.trim() || !$('#cl-role').value.trim()) return toast('Fill JD, company, role', true);
   const btn = $('#cl-generate'); btn.disabled = true; btn.textContent = 'Generating...';
   try {
-    const res = await fetch('/.netlify/functions/cover-letter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: baseResumeText || $('#resume-base-text').textContent || 'Experienced professional', jd: $('#cl-jd').value, company: $('#cl-company').value, role: $('#cl-role').value, sender_name: $('#cl-name').value, headline: $('#cl-headline').value, tone: $('#cl-tone').value }) });
+    const res = await fetch('${API_BASE}/cover-letter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: baseResumeText || $('#resume-base-text').textContent || 'Experienced professional', jd: $('#cl-jd').value, company: $('#cl-company').value, role: $('#cl-role').value, sender_name: $('#cl-name').value, headline: $('#cl-headline').value, tone: $('#cl-tone').value }) });
     const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Failed');
     $('#cl-output').classList.remove('hidden'); $('#cl-output').value = data.cover_letter;
     msg.className = 'form-msg ok'; msg.textContent = '✨ Generated';
@@ -533,7 +541,7 @@ $('#ats-analyze').addEventListener('click', async () => {
   if (!$('#ats-resume').value.trim() || !$('#ats-jd').value.trim()) return toast('Fill resume and JD', true);
   const btn = $('#ats-analyze'); btn.disabled = true; btn.textContent = 'Analyzing...';
   try {
-    const res = await fetch('/.netlify/functions/ats-optimize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: $('#ats-resume').value, jd: $('#ats-jd').value, keywords: $('#ats-keywords').value.split(',').map(s => s.trim()).filter(Boolean), target_role: $('#ats-role').value }) });
+    const res = await fetch('${API_BASE}/ats-optimize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: $('#ats-resume').value, jd: $('#ats-jd').value, keywords: $('#ats-keywords').value.split(',').map(s => s.trim()).filter(Boolean), target_role: $('#ats-role').value }) });
     const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Failed');
     $('#ats-output').classList.remove('hidden'); $('#ats-output').value = data.resume;
     renderATSAnalysis(data.analysis);
@@ -567,7 +575,7 @@ $('#salary-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = $('#salary-form .btn'); btn.disabled = true; btn.textContent = 'Estimating...';
   try {
-    const res = await fetch('/.netlify/functions/salary-estimate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: $('#sal-role').value, location: $('#sal-location').value, experience_years: $('#sal-exp').value, skills: $('#sal-skills').value.split(',').map(s => s.trim()).filter(Boolean), industry: $('#sal-industry').value, company_size: $('#sal-size').value }) });
+    const res = await fetch('${API_BASE}/salary-estimate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: $('#sal-role').value, location: $('#sal-location').value, experience_years: $('#sal-exp').value, skills: $('#sal-skills').value.split(',').map(s => s.trim()).filter(Boolean), industry: $('#sal-industry').value, company_size: $('#sal-size').value }) });
     const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Failed');
     renderSalaryResult(data); $('#sal-result').classList.remove('hidden');
   } catch (err) { toast('Error: ' + err.message, true); }
@@ -619,7 +627,7 @@ $('#aa-scrape-contacts').addEventListener('click', async () => {
   if (!url) return toast('Enter job URL or company', true);
   $('#aa-msg').className = 'form-msg'; $('#aa-msg').textContent = 'Scraping...';
   try {
-    const res = await fetch('/.netlify/functions/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url.startsWith('http') ? url : 'https://' + url }) });
+    const res = await fetch('${API_BASE}/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url.startsWith('http') ? url : 'https://' + url }) });
     const data = await res.json();
     if (data.jobs?.length) {
       const j = data.jobs[0];
@@ -654,7 +662,7 @@ $('#aa-send-all').addEventListener('click', async () => {
   const msg = $('#aa-send-msg'); msg.className = 'form-msg'; msg.textContent = '';
   const btn = $('#aa-send-all'); btn.disabled = true; btn.textContent = 'Sending...';
   try {
-    const res = await fetch('/.netlify/functions/auto-apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job: { id: uid(), title: $('#aa-title').value, company: $('#aa-company').value, location: '', url: $('#aa-job-url').value, description: $('#aa-jd').value, contacts: aaContacts }, resume: $('#aa-resume').value || baseResumeText, cover_letter: $('#aa-cover').value, sender: { name: $('#aa-name').value, email: $('#aa-email').value, headline: $('#aa-headline').value, linkedin: $('#aa-linkedin').value, portfolio: $('#aa-portfolio').value }, options: { dry_run: $('#aa-dry-run').checked, delay_ms: 1500 } }) });
+    const res = await fetch('${API_BASE}/auto-apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job: { id: uid(), title: $('#aa-title').value, company: $('#aa-company').value, location: '', url: $('#aa-job-url').value, description: $('#aa-jd').value, contacts: aaContacts }, resume: $('#aa-resume').value || baseResumeText, cover_letter: $('#aa-cover').value, sender: { name: $('#aa-name').value, email: $('#aa-email').value, headline: $('#aa-headline').value, linkedin: $('#aa-linkedin').value, portfolio: $('#aa-portfolio').value }, options: { dry_run: $('#aa-dry-run').checked, delay_ms: 1500 } }) });
     const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Failed');
     await DB.insert('applications', { id: uid(), company: $('#aa-company').value, role: $('#aa-title').value, contacts_sent: data.results.filter(r => r.status === 'sent').length, status: $('#aa-dry-run').checked ? 'dry_run' : (data.sent > 0 ? 'sent' : 'failed'), results: data.results, sentAt: new Date().toISOString() });
     msg.className = 'form-msg ok'; msg.textContent = `Done: ${data.sent} sent, ${data.total - data.sent} failed/dry-run`;
@@ -812,7 +820,7 @@ async function searchRemoteJobs() {
 
 async function fetchRemoteSource(src, keywords, timeFilter) {
   try {
-    const res = await fetch('/.netlify/functions/remote-fetch', {
+    const res = await fetch('${API_BASE}/remote-fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: src.id, url: src.url, keywords, timeFilter, parser: src.parser })
