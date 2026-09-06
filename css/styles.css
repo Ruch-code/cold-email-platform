@@ -650,8 +650,10 @@ textarea { resize: vertical; line-height: 1.5; }
 @media (prefers-contrast: high) {
   .cursor-core { background: #fff; border: 2px solid #000; }
   .cursor-ring { border-color: #fff; }
-  .ripple-ring { border-color: #fff; }
 }
+
+/* Hide Netlify badge */
+#netlify-badge, .netlify-badge, [data-netlify-badge], .netlify-identity-widget { display: none !important; }
 
 /* Focus visible for keyboard nav */
 .cursor-3d:focus-visible {

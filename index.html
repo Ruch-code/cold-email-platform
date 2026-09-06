@@ -111,26 +111,50 @@
         <header class="page-head" data-parallax="0.08">
           <div>
             <h1>🌍 Remote Opportunities</h1>
-            <p class="sub">Aggregated remote jobs from top sources. Search, save, and apply.</p>
+            <p class="sub">Live feed from 10+ remote job boards. One-click fetch, search, and apply.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn primary" id="remote-fetch-all" title="Fetch latest from all sources">⚡ Fetch All Latest</button>
+            <button class="btn" id="remote-auto-refresh" title="Toggle auto-refresh every 5 min">🔄 Auto</button>
           </div>
         </header>
 
+        <!-- Quick Source Chips -->
         <div class="panel">
-          <h3>Remote Job Sources</h3>
-          <p class="muted small">Pre-configured sources for remote-first companies. Add your own below.</p>
-          <div id="remote-sources" class="card-list"></div>
-          <div class="field-row" style="margin-top: 16px;">
-            <label class="grow">Add Custom Remote Source
-              <input type="url" id="remote-custom-url" placeholder="https://company.com/careers or https://jobs.lever.co/company" />
-            </label>
-            <label>Source Name
-              <input type="text" id="remote-custom-name" placeholder="Company Name" />
-            </label>
-            <button class="btn primary" id="remote-add-source">＋ Add Source</button>
-          </div>
+          <h3>Popular Remote Job Boards</h3>
+          <p class="muted small">Click any chip to instantly fetch latest jobs from that source</p>
+          <div class="source-chips" id="source-chips"></div>
         </div>
 
+        <!-- Live Feed -->
+        <div class="panel live-feed-panel">
+          <div class="panel-head">
+            <h3>📡 Live Feed <span class="live-indicator" id="live-indicator"></span></h3>
+            <div class="feed-controls">
+              <select id="feed-source" class="small-select">
+                <option value="all">All Sources</option>
+              </select>
+              <select id-feed-time class="small-select">
+                <option value="24h">Last 24h</option>
+                <option value="week" selected>Last Week</option>
+                <option value="month">Last Month</option>
+              </select>
+              <span class="feed-stats" id="feed-stats">0 jobs</span>
+            </div>
+          </div>
+          <div class="feed-filters">
+            <input type="text" id="feed-keywords" placeholder="Filter: React, Senior, Python..." class="feed-search" />
+            <select id="feed-role" class="small-select">
+              <option value="">All Roles</option>
+            </select>
+            <button class="btn small" id="feed-clear">Clear</button>
+          </div>
+          <div id="live-feed" class="feed-list"></div>
+        </div>
+
+        <!-- Search & Custom Sources -->
         <div class="panel">
+          <h3>Custom Search & Sources</h3>
           <form id="remote-search-form" class="scan-form">
             <div class="field-row">
               <label class="grow">Search Keywords
@@ -155,17 +179,36 @@
                 </select>
               </label>
             </div>
-            <button class="btn primary" type="submit">🔍 Search All Remote Jobs</button>
-            <button class="btn" type="button" id="remote-save-alert">＋ Save as Alert</button>
+            <div class="form-actions">
+              <button class="btn primary" type="submit">🔍 Search All Sources</button>
+              <button class="btn" type="button" id="remote-save-alert">＋ Save as Alert</button>
+            </div>
           </form>
         </div>
 
+        <!-- Custom Sources Management -->
+        <div class="panel">
+          <h3>Custom Sources</h3>
+          <p class="muted small">Add company career pages or job board URLs</p>
+          <div id="remote-sources" class="card-list"></div>
+          <div class="field-row" style="margin-top: 16px;">
+            <label class="grow">Add Custom Source
+              <input type="url" id="remote-custom-url" placeholder="https://company.com/careers or https://jobs.lever.co/company" />
+            </label>
+            <label>Source Name
+              <input type="text" id="remote-custom-name" placeholder="Company Name" />
+            </label>
+            <button class="btn primary" id="remote-add-source">＋ Add Source</button>
+          </div>
+        </div>
+
+        <!-- Search Results -->
         <div class="panel">
           <div class="panel-head">
-            <h3>Remote Opportunities</h3>
+            <h3>Search Results</h3>
             <span class="badge" id="remote-count">0</span>
           </div>
-          <p class="muted small" id="remote-hint">Enter keywords and search across all configured remote sources.</p>
+          <p class="muted small" id="remote-hint">Results appear here after search</p>
           <div id="remote-results" class="card-list"></div>
         </div>
       </section>

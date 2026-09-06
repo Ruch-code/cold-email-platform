@@ -38,6 +38,18 @@ exports.handler = async (event) => {
       case 'stackoverflow':
         jobs = await fetchStackOverflow(url, keywords);
         break;
+      case 'wellfound':
+        jobs = await fetchWellfound(url, keywords);
+        break;
+      case 'dynamitejobs':
+        jobs = await fetchDynamiteJobs(url, keywords);
+        break;
+      case 'himalayas':
+        jobs = await fetchHimalayas(url, keywords);
+        break;
+      case 'workingnomads':
+        jobs = await fetchWorkingNomads(url, keywords);
+        break;
       case 'custom':
         jobs = await fetchCustomSource(url, keywords);
         break;
@@ -335,6 +347,58 @@ function filterByTime(jobs, timeFilter) {
 function matchesKeywords(job, keywords) {
   const haystack = (job.title + ' ' + job.description + ' ' + job.company + ' ' + (job.tags || []).join(' ')).toLowerCase();
   return keywords.some(k => haystack.includes(k.toLowerCase()));
+}
+
+async function fetchWellfound(url, keywords) {
+  // Wellfound (AngelList) - scrape their job listings
+  try {
+    const res = await fetch(url || 'https://wellfound.com/jobs', {
+      signal: AbortSignal.timeout(20000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' }
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    return extractGenericJobs(html, 'https://wellfound.com');
+  } catch { return []; }
+}
+
+async function fetchDynamiteJobs(url, keywords) {
+  // Dynamite Jobs - RSS feed
+  try {
+    const res = await fetch(url || 'https://dynamitejobs.com/jobs/rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text); // Same RSS structure
+  } catch { return []; }
+}
+
+async function fetchHimalayas(url, keywords) {
+  // Himalayas - RSS feed
+  try {
+    const res = await fetch(url || 'https://himalayas.app/jobs/rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchWorkingNomads(url, keywords) {
+  // Working Nomads - RSS feed
+  try {
+    const res = await fetch(url || 'https://workingnomads.com/jobs/rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
 }
 
 function uid() {

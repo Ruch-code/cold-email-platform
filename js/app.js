@@ -15,15 +15,42 @@ function toast(msg, isErr = false) {
 /* ---------- VIEW SWITCHING ---------- */
 $$('.nav-item').forEach((btn) => {
   btn.addEventListener('click', () => {
+    if (!canAccessView(btn.dataset.view)) return;
     $$('.nav-item').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     switchView(btn.dataset.view);
   });
 });
 $$('[data-goto]').forEach((b) => b.addEventListener('click', () => {
+  if (!canAccessView(b.dataset.goto)) return;
   $$('.nav-item').forEach((x) => x.classList.toggle('active', x.dataset.view === b.dataset.goto));
   switchView(b.dataset.goto);
 }));
+
+const PROTECTED_VIEWS = ['remote', 'scanner', 'scraper', 'resume', 'ats', 'cover-letter', 'salary', 'auto-apply', 'email', 'database'];
+
+function canAccessView(view) {
+  if (!PROTECTED_VIEWS.includes(view)) return true;
+  const user = getCurrentUserSync();
+  if (!user) {
+    toast('Please sign in first', true);
+    switchView('login');
+    return false;
+  }
+  if (user.accessStatus !== 'approved') {
+    toast('Access pending admin approval', true);
+    switchView('login');
+    return false;
+  }
+  return true;
+}
+
+function getCurrentUserSync() {
+  try {
+    const stored = localStorage.getItem('hh_user');
+    return stored ? JSON.parse(stored) : null;
+  } catch { return null; }
+}
 
 const VIEW_HANDLERS = {
   dashboard: renderDashboard,
@@ -99,15 +126,73 @@ async function getCurrentUser() {
 }
 
 function showLoggedIn(user) {
-  $('#logged-in-view').classList.remove('hidden');
+  // Check access status via auth-check-access
+  checkUserAccess(user.email).then(access => {
+    if (!access.hasAccess) {
+      showAccessStatus(access);
+      return;
+    }
+    
+    // Store user for auth gate
+    const userData = {
+      email: user.email,
+      name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+      accessStatus: 'approved'
+    };
+    localStorage.setItem('hh_user', JSON.stringify(userData));
+    
+    $('#logged-in-view').classList.remove('hidden');
+    $$('.auth-form').forEach(f => f.classList.add('hidden'));
+    $$('.auth-tab').forEach(t => t.classList.add('hidden'));
+    $('#user-name').textContent = userData.name;
+    $('#user-email').textContent = userData.email;
+    $('#user-status').textContent = 'Approved';
+    $('#user-status').className = 'status-badge approved';
+  });
+}
+
+async function checkUserAccess(email) {
+  try {
+    const res = await fetch('/.netlify/functions/auth-check-access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    return await res.json();
+  } catch {
+    return { hasAccess: false, status: 'error', message: 'Unable to verify access' };
+  }
+}
+
+function showAccessStatus(access) {
+  $('#logged-in-view').classList.add('hidden');
   $$('.auth-form').forEach(f => f.classList.add('hidden'));
   $$('.auth-tab').forEach(t => t.classList.add('hidden'));
-  $('#user-name').textContent = user.user_metadata?.name || user.email?.split('@')[0] || 'User';
-  $('#user-email').textContent = user.email || '';
+  $('#access-status-view').classList.remove('hidden');
+  
+  const icons = { pending: '⏳', approved: '✅', rejected: '❌', not_requested: '📝' };
+  const titles = { 
+    pending: 'Access Pending', 
+    approved: 'Access Approved', 
+    rejected: 'Access Denied', 
+    not_requested: 'Request Access' 
+  };
+  
+  $('#status-icon').textContent = icons[access.status] || '❓';
+  $('#status-title').textContent = titles[access.status] || 'Access Status';
+  $('#status-message').textContent = access.message || 'Unknown status';
+  
+  let details = '';
+  if (access.status === 'pending') details = '<p class="muted small">An admin will review your request within 24 hours.</p>';
+  if (access.status === 'rejected') details = `<p class="muted small">Reason: ${access.admin_notes || 'No reason provided'}</p>`;
+  if (access.status === 'not_requested') details = '<p class="muted small">Click "Request Access" tab to apply.</p>';
+  $('#status-details').innerHTML = details;
 }
 
 function showLoggedOut() {
+  localStorage.removeItem('hh_user');
   $('#logged-in-view').classList.add('hidden');
+  $('#access-status-view').classList.add('hidden');
   $$('.auth-form').forEach(f => f.classList.remove('hidden'));
   $$('.auth-tab').forEach(t => t.classList.remove('hidden'));
   $('#login-form').classList.remove('hidden');
@@ -580,6 +665,18 @@ $('#aa-send-all').addEventListener('click', async () => {
 
 /* ---------- REMOTE JOBS ---------- */
 const REMOTE_SOURCES = [
+  // Free All-Rounder Remote Boards
+  { id: 'weworkremotely', name: 'We Work Remotely', url: 'https://weworkremotely.com/remote-jobs.rss', parser: 'wwr' },
+  { id: 'remoteok', name: 'RemoteOK', url: 'https://remoteok.io/api', parser: 'remoteok' },
+  { id: 'remotive', name: 'Remotive', url: 'https://remotive.io/api/remote-jobs', parser: 'remotive' },
+  { id: 'himalayas', name: 'Himalayas', url: 'https://himalayas.app/jobs/rss', parser: 'himalayas' },
+  { id: 'workingnomads', name: 'Working Nomads', url: 'https://workingnomads.com/jobs/rss', parser: 'workingnomads' },
+
+  // Free Startup & Tech Platforms
+  { id: 'wellfound', name: 'Wellfound (AngelList)', url: 'https://wellfound.com/jobs', parser: 'wellfound' },
+  { id: 'dynamitejobs', name: 'Dynamite Jobs', url: 'https://dynamitejobs.com/jobs/rss', parser: 'dynamitejobs' },
+
+  // Existing
   { id: 'github', name: 'GitHub Jobs', url: 'https://jobs.github.com/positions.json', parser: 'github' },
   { id: 'remoteok', name: 'RemoteOK', url: 'https://remoteok.io/api', parser: 'remoteok' },
   { id: 'weworkremotely', name: 'We Work Remotely', url: 'https://weworkremotely.com/remote-jobs.rss', parser: 'wwr' },
