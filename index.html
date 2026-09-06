@@ -62,6 +62,31 @@
           <strong id="sidebar-leads">0</strong>
         </div>
         <button class="btn ghost small" id="export-data">⬇ Export Data</button>
+        <!-- Discrete admin access -->
+        <div class="admin-portal" id="admin-portal" title="HiredHunter Admin">
+          <div class="portal-globe">
+            <svg class="globe-svg" viewBox="0 0 100 100" aria-hidden="true">
+              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--border)" stroke-width="1.5"/>
+              <path d="M50 5 C50 5 50 95 50 95" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4,4"/>
+              <ellipse cx="50" cy="50" rx="45" ry="12" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.3"/>
+              <circle cx="30" cy="40" r="3" fill="var(--accent)" opacity="0.8">
+                <animate attributeName="opacity" values="0.8;0.2;0.8" dur="3s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="70" cy="60" r="2.5" fill="var(--accent-2)" opacity="0.8">
+                <animate attributeName="opacity" values="0.8;0.2;0.8" dur="3s" repeatCount="indefinite" begin="1s"/>
+              </circle>
+              <circle cx="45" cy="70" r="2" fill="var(--green)" opacity="0.8">
+                <animate attributeName="opacity" values="0.8;0.2;0.8" dur="3s" repeatCount="indefinite" begin="2s"/>
+              </circle>
+            </svg>
+            <div class="portal-ring"></div>
+            <div class="portal-ring portal-ring-2"></div>
+          </div>
+          <div class="portal-tooltip">
+            <div class="tooltip-story" id="portal-story"></div>
+            <div class="tooltip-action">Click to enter →</div>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -448,7 +473,6 @@
           <div class="auth-tabs">
             <button class="auth-tab active" data-tab="login">Sign In</button>
             <button class="auth-tab" data-tab="request">Request Access</button>
-            <button class="auth-tab" data-tab="admin">Admin Login</button>
           </div>
 
           <!-- SIGN IN TAB -->
@@ -480,22 +504,9 @@
             </label>
             <button class="btn primary" type="submit">Submit Request</button>
             <div class="form-msg" id="request-msg"></div>
-          </form>
+</form>
 
-          <!-- ADMIN LOGIN TAB -->
-          <form id="admin-login-form" class="auth-form hidden">
-            <p class="muted small">Admin credentials are configured in Netlify environment variables.</p>
-            <label>Admin Username
-              <input type="text" id="admin-username" placeholder="admin" required />
-            </label>
-            <label>Admin Password
-              <input type="password" id="admin-password" placeholder="••••••••" required />
-            </label>
-            <button class="btn primary" type="submit">Admin Sign In</button>
-            <div class="form-msg" id="admin-login-msg"></div>
-          </form>
-
-          <p class="muted small" id="auth-hint">Configure SUPABASE_URL and SUPABASE_ANON_KEY in Netlify env vars for full features.</p>
+          <p class="muted small" id="auth-hint">Uses Supabase Auth. Configure SUPABASE_URL and SUPABASE_ANON_KEY in Netlify env vars.</p>
         </div>
 
         <!-- LOGGED IN USER VIEW -->

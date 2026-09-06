@@ -933,9 +933,90 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({ 
 function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
 function uid() { return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
+/* ---------- ADMIN PORTAL ---------- */
+const PORTAL_STORIES = [
+  "The system hums quietly. 12,847 candidates tracked. 3,291 interviews scheduled. 847 offers extended. You built this.",
+  "Midnight deploy. Zero downtime. The pipeline remembers every hand that shaped it. Welcome back, architect.",
+  "Access logs show 47 sign-ins this week. 12 pending approvals. 3 rejections. The gatekeeper watches.",
+  "Database heartbeat: steady. 2.3M records. Zero corruption. The foundation you laid holds strong.",
+  "Remote feed active: 12 sources. 847 live listings. 23 matched your keywords today. The net is cast.",
+  "Email queue: 12 sent, 3 pending, 0 failed. Your words reached inboxes across 3 timezones.",
+  "Resume optimizer ran 34 times this week. ATS scores climbed 23% on average. The edge sharpens.",
+  "Cover letters generated: 19. Each tailored. Each honest. The human touch scales.",
+  "Salary estimates requested: 41. Data from 12,000+ data points. Knowledge compounds.",
+  "Auto-apply sent 8 applications while you slept. 3 replies by morning. The machine works."
+];
+
+let portalHoverCount = 0;
+let portalStoryIndex = 0;
+let portalStoryTimer = null;
+
+function initAdminPortal() {
+  const globe = $('#admin-portal .portal-globe');
+  const storyEl = $('#portal-story');
+  
+  if (!globe || !storyEl) return;
+  
+  // Make focusable
+  globe.setAttribute('tabindex', '0');
+  globe.setAttribute('role', 'button');
+  globe.setAttribute('aria-label', 'Admin Portal');
+  
+  // Show random story on hover
+  globe.addEventListener('mouseenter', () => {
+    portalHoverCount++;
+    showPortalStory();
+  });
+  
+  // Click to enter admin login
+  globe.addEventListener('click', () => {
+    switchView('login');
+    // Auto-switch to request tab after a moment (admin can sign in there)
+    setTimeout(() => {
+      const requestTab = $$('.auth-tab').find(t => t.dataset.tab === 'request');
+      if (requestTab) requestTab.click();
+    }, 300);
+  });
+  
+  // Keyboard support
+  globe.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      globe.click();
+    }
+  });
+  
+  // Cycle stories every 4 seconds while hovered
+  globe.addEventListener('mouseenter', startStoryCycle);
+  globe.addEventListener('mouseleave', stopStoryCycle);
+}
+
+function showPortalStory() {
+  const storyEl = $('#portal-story');
+  if (!storyEl) return;
+  
+  const story = PORTAL_STORIES[portalStoryIndex];
+  portalStoryIndex = (portalStoryIndex + 1) % PORTAL_STORIES.length;
+  
+  storyEl.innerHTML = `<p>${story}</p>`;
+}
+
+function startStoryCycle() {
+  stopStoryCycle();
+  portalStoryTimer = setInterval(showPortalStory, 4000);
+}
+
+function stopStoryCycle() {
+  if (portalStoryTimer) {
+    clearInterval(portalStoryTimer);
+    portalStoryTimer = null;
+  }
+}
+
 /* ---------- INIT ---------- */
 (async function init() {
   loadSupabaseClient();
+  initAdminPortal();
   const s = await DB.getAll('settings');
   if (s.resumeBase) { baseResumeText = s.resumeBase; $('#resume-base-preview').classList.remove('hidden'); $('#resume-base-text').textContent = baseResumeText; $('#resume-file-label').textContent = '✅ Resume loaded'; }
   if (s.senderName) { $('#email-name').value = s.senderName; $('#cl-name').value = s.senderName; $('#aa-name').value = s.senderName; }
