@@ -24,24 +24,24 @@ const SALARY_DATA = {
     'site reliability engineer': { base: 150000, exp_multiplier: 0.1 },
   },
 
-  // Location multipliers
+  // Location multipliers (moderated)
   locations: {
-    'san francisco': 1.45, 'sf': 1.45, 'bay area': 1.42,
-    'new york': 1.35, 'nyc': 1.35, 'manhattan': 1.38,
-    'seattle': 1.25, 'boston': 1.22, 'los angeles': 1.2,
-    'austin': 1.1, 'denver': 1.12, 'chicago': 1.1,
-    'atlanta': 1.05, 'remote': 1.0, 'remote us': 1.0,
-    'london': 1.0, 'uk': 0.75, 'berlin': 0.85, 'amsterdam': 0.9,
-    'toronto': 0.85, 'vancouver': 0.9, 'sydney': 0.95,
-    'singapore': 1.0, 'tokyo': 0.85,
+    'san francisco': 1.25, 'sf': 1.25, 'bay area': 1.22,
+    'new york': 1.2, 'nyc': 1.2, 'manhattan': 1.22,
+    'seattle': 1.15, 'boston': 1.12, 'los angeles': 1.12,
+    'austin': 1.05, 'denver': 1.08, 'chicago': 1.05,
+    'atlanta': 1.02, 'remote': 1.0, 'remote us': 1.0,
+    'london': 0.95, 'uk': 0.7, 'berlin': 0.8, 'amsterdam': 0.85,
+    'toronto': 0.8, 'vancouver': 0.85, 'sydney': 0.9,
+    'singapore': 0.95, 'tokyo': 0.8,
   },
 
-  // Industry multipliers
+  // Industry multipliers (moderated)
   industries: {
-    'fintech': 1.15, 'ai': 1.2, 'ml': 1.2, 'crypto': 1.25,
-    'big tech': 1.3, 'faang': 1.35, 'unicorn': 1.2,
-    'healthcare': 1.1, 'ecommerce': 1.05, 'saas': 1.1,
-    'gaming': 1.0, 'edtech': 0.95, 'nonprofit': 0.85,
+    'fintech': 1.1, 'ai': 1.15, 'ml': 1.15, 'crypto': 1.15,
+    'big tech': 1.15, 'faang': 1.2, 'unicorn': 1.12,
+    'healthcare': 1.05, 'ecommerce': 1.02, 'saas': 1.05,
+    'gaming': 1.0, 'edtech': 0.95, 'nonprofit': 0.9,
   },
 
   // Skill premiums (annual $)
@@ -81,16 +81,16 @@ exports.handler = async (event) => {
     .map(s => SALARY_DATA.skill_premiums[s.toLowerCase().trim()] || 0)
     .reduce((a, b) => a + b, 0);
 
-  const companySizeMult = company_size === 'startup' ? 0.9 : company_size === 'enterprise' ? 1.1 : 1.0;
+  const companySizeMult = company_size === 'startup' ? 0.9 : company_size === 'enterprise' ? 1.05 : 1.0;
 
-  // Use additive adjustment model instead of pure compounding
+  // Simplified realistic calculation
   const base = roleData.base;
-  const adjustedBase = base * locationMult;
-  const experienceAdj = adjustedBase * (expMult - 1) * 0.5; // dampen experience impact
-  const industryAdj = adjustedBase * (industryMult - 1) * 0.5; // dampen industry impact
-  const sizeAdj = adjustedBase * (companySizeMult - 1) * 0.5; // dampen size impact
+  const locationAdjusted = Math.round(base * locationMult);
+  const experienceAdj = Math.round(base * (expMult - 1) * 0.6);
+  const industryAdj = Math.round(base * (industryMult - 1) * 0.4);
+  const sizeAdj = Math.round(base * (companySizeMult - 1) * 0.3);
 
-  const estimated = Math.round(adjustedBase + experienceAdj + industryAdj + sizeAdj + skillPremium);
+  const estimated = locationAdjusted + experienceAdj + industryAdj + sizeAdj + skillPremium;
   const range = {
     low: Math.round(estimated * 0.85),
     mid: estimated,
