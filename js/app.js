@@ -24,13 +24,24 @@ $$('[data-goto]').forEach((b) => b.addEventListener('click', () => {
   $$('.nav-item').forEach((x) => x.classList.toggle('active', x.dataset.view === b.dataset.goto));
   switchView(b.dataset.goto);
 }));
+
+const VIEW_HANDLERS = {
+  dashboard: renderDashboard,
+  database: renderDatabase,
+  email: renderEmailSettings,
+  'cover-letter': renderCoverLetterList,
+  ats: renderATSList,
+  salary: renderSalaryList,
+  'auto-apply': renderAutoApplyHistory,
+  login: checkAuthState,
+};
+
 function switchView(name) {
   $$('.view').forEach((v) => v.classList.remove('active'));
   const el = $('#view-' + name);
   if (el) el.classList.add('active');
-  if (name === 'dashboard') renderDashboard();
-  if (name === 'database') renderDatabase();
-  if (name === 'email') renderEmailSettings();
+  const handler = VIEW_HANDLERS[name];
+  if (handler) handler();
 }
 
 /* ---------- DB HELPERS ---------- */
@@ -49,11 +60,11 @@ async function renderDashboard() {
   $('#stat-scraped').textContent = scraped.length;
   $('#stat-emails').textContent = emails.length;
   $('#stat-contacted').textContent = uniqueRecruiterCount(emails);
-  // prefill settings
   const canEmail = await DB.getAll('settings');
   $('#set-resend').value = canEmail.resendKey || '';
   $('#set-openai').value = canEmail.openaiKey || '';
 }
+
 function uniqueRecruiterCount(emails) {
   return new Set(emails.filter((e) => e.to).map((e) => e.to.toLowerCase())).size;
 }
@@ -71,12 +82,119 @@ $('#settings-form').addEventListener('submit', async (e) => {
   toast('API keys saved');
 });
 
-/* ---------- JOB SCANNER ---------- */
-const savedQueries = [];
-$('#scan-form').addEventListener('submit', async (e) => {
+/* ---------- AUTH ---------- */
+async function checkAuthState() {
+  const user = await getCurrentUser();
+  if (user) showLoggedIn(user);
+  else showLoggedOut();
+}
+
+async function getCurrentUser() {
+  try {
+    const res = await fetch('/.netlify/functions/auth-me');
+    const data = await res.json();
+    return data.user || null;
+  } catch { return null; }
+}
+
+function showLoggedIn(user) {
+  $('#logged-in-view').classList.remove('hidden');
+  $$('.auth-form').forEach(f => f.classList.add('hidden'));
+  $$('.auth-tab').forEach(t => t.classList.add('hidden'));
+  $('#user-name').textContent = user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+  $('#user-email').textContent = user.email || '';
+}
+
+function showLoggedOut() {
+  $('#logged-in-view').classList.add('hidden');
+  $$('.auth-form').forEach(f => f.classList.remove('hidden'));
+  $$('.auth-tab').forEach(t => t.classList.remove('hidden'));
+  $('#login-form').classList.remove('hidden');
+  $('#signup-form').classList.add('hidden');
+  $$('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'login'));
+}
+
+$$('.auth-tab').forEach(t => t.addEventListener('click', () => {
+  $$('.auth-tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $('#login-form').classList.toggle('hidden', t.dataset.tab !== 'login');
+  $('#signup-form').classList.toggle('hidden', t.dataset.tab !== 'signup');
+  $('#login-msg').textContent = '';
+  $('#signup-msg').textContent = '';
+}));
+
+$('#login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  await runScan();
+  const msg = $('#login-msg');
+  msg.textContent = '';
+  try {
+    const res = await fetch('/.netlify/functions/auth-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: $('#login-email').value, password: $('#login-password').value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    showLoggedIn(data.user);
+    await DB.loadFromSupabase();
+    renderDashboard();
+    toast('Welcome back!');
+  } catch (err) {
+    msg.className = 'form-msg err';
+    msg.textContent = err.message;
+  }
 });
+
+$('#signup-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#signup-msg');
+  msg.textContent = '';
+  if ($('#signup-password').value !== $('#signup-confirm').value) {
+    msg.className = 'form-msg err';
+    msg.textContent = 'Passwords do not match';
+    return;
+  }
+  try {
+    const res = await fetch('/.netlify/functions/auth-signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: $('#signup-email').value,
+        password: $('#signup-password').value,
+        name: $('#signup-name').value
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Signup failed');
+    msg.className = 'form-msg ok';
+    msg.textContent = 'Account created! Check email to confirm, then sign in.';
+  } catch (err) {
+    msg.className = 'form-msg err';
+    msg.textContent = err.message;
+  }
+});
+
+$('#btn-logout').addEventListener('click', async () => {
+  try {
+    await fetch('/.netlify/functions/auth-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    showLoggedOut();
+    DB.clear();
+    renderDashboard();
+    toast('Signed out');
+  } catch (err) {
+    toast('Logout failed: ' + err.message, true);
+  }
+});
+
+/* ---------- BTC COPY ---------- */
+$('#btc-copy').addEventListener('click', () => {
+  const addr = '0xdd1e9C99Fa2D42F48f5c5F0c155b48E9b31b9C42';
+  navigator.clipboard.writeText(addr);
+  toast('Bitcoin address copied: ' + addr.slice(0, 10) + '...' + addr.slice(-6));
+});
+
+/* ---------- JOB SCANNER ---------- */
+$('#scan-form').addEventListener('submit', async (e) => { e.preventDefault(); await runScan(); });
 $('#scan-save-query').addEventListener('click', async () => {
   const kw = $('#scan-keywords').value.trim();
   if (!kw) return toast('Enter keywords first', true);
@@ -89,62 +207,36 @@ async function runScan() {
   if (!keywords) return toast('Enter keywords to scan', true);
   const btn = $('#scan-form .btn.primary');
   btn.disabled = true; btn.textContent = 'Scanning...';
-
-  const payload = {
-    keywords,
-    location: $('#scan-location').value.trim(),
-    role: $('#scan-role').value.trim(),
-    source: $('#scan-source').value,
-  };
-
+  const payload = { keywords, location: $('#scan-location').value.trim(), role: $('#scan-role').value.trim(), source: $('#scan-source').value };
   try {
-    const res = await fetch('/.netlify/functions/job-scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const res = await fetch('/.netlify/functions/job-scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Scan failed');
     $('#scan-count').textContent = data.jobs.length;
     $('#scan-hint').classList.add('hidden');
     renderScanResults(data.jobs);
-    if (data.jobs.length === 0) {
-      $('#scan-results').innerHTML = '<p class="muted small">No direct matches via the network source. Try the Web Scraper for a specific company page, or tweak keywords.</p>';
-    }
   } catch (err) {
-    // Offline/fallback: generate synthetic matching opportunities client-side
     const fallback = buildFallbackJobs(payload);
     $('#scan-count').textContent = fallback.length;
     $('#scan-hint').classList.add('hidden');
     renderScanResults(fallback);
-    toast('Used offline matching (Netlify function unavailable)', true);
-  } finally {
-    btn.disabled = false; btn.textContent = '🔍 Scan Matching Jobs';
-  }
+    toast('Used offline matching', true);
+  } finally { btn.disabled = false; btn.textContent = '🔍 Scan Matching Jobs'; }
 }
 
 function buildFallbackJobs(p) {
-  const kwList = p.keywords.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+  const kwList = p.keywords.split(/[,;]/).map(s => s.trim()).filter(Boolean);
   const bases = [
     { title: p.role || 'Software Engineer', company: 'Aurora Labs', loc: p.location || 'Remote', src: p.source },
     { title: p.role || 'Full Stack Developer', company: 'Nimbus Systems', loc: p.location || 'London', src: p.source },
     { title: p.role || 'Frontend Engineer', company: 'Vertex Digital', loc: p.location || 'Remote', src: p.source },
     { title: p.role || 'Product Engineer', company: 'Helix AI', loc: p.location || 'New York', src: p.source },
   ];
-  return bases.map((b, i) => {
-    const matched = kwList.filter((k) => i !== 3 || true);
-    return {
-      id: uid(),
-      title: b.title,
-      company: b.company,
-      location: b.loc,
-      source: b.src,
-      description: `We are hiring a ${b.title} to join our team. Responsibilities include building scalable web applications and collaborating with cross-functional product teams. Looking for someone skilled in: ${matched.join(', ') || 'modern web development'}.\n\nApply ${p.source} to move forward!`,
-      url: `https://${b.company.toLowerCase().replace(/\s+/g, '')}.example.com/careers`,
-      keywords: matched,
-      posted: 'Just now',
-    };
-  });
+  return bases.map((b, i) => ({
+    id: uid(), title: b.title, company: b.company, location: b.loc, source: b.src,
+    description: `We are hiring a ${b.title} to join our team. Looking for: ${kwList.join(', ') || 'modern web dev'}.`,
+    url: `https://${b.company.toLowerCase().replace(/\s+/g, '')}.example.com/careers`, keywords: kwList, posted: 'Just now',
+  }));
 }
 
 function renderScanResults(jobs) {
@@ -158,36 +250,22 @@ function renderScanResults(jobs) {
     const level = matchPct > 80 ? 'high' : matchPct > 65 ? 'med' : 'low';
     card.innerHTML = `
       <div class="card-top">
-        <div>
-          <div class="card-title">${esc(job.title || 'Role')}</div>
-          <div class="card-sub">${esc(job.company || 'Company')} · ${esc(job.location || 'Remote')}</div>
-        </div>
+        <div><div class="card-title">${esc(job.title)}</div><div class="card-sub">${esc(job.company)} · ${esc(job.location)}</div></div>
         <div class="card-match"><span class="match-pill match-${level}">${matchPct}% match</span></div>
       </div>
-      <div class="card-meta">
-        <span>🗂 ${esc(job.source || 'listed')}</span>
-        ${job.posted ? `<span>🕒 ${esc(job.posted)}</span>` : ''}
-        ${job.role ? `<span>🎯 ${esc(job.role)}</span>` : ''}
-      </div>
+      <div class="card-meta"><span>🗂 ${esc(job.source)}</span> ${job.posted ? `<span>🕒 ${esc(job.posted)}</span>` : ''}</div>
       <div class="card-desc">${esc(clip(job.description, 160))}</div>
-      ${job.keywords && job.keywords.length ? `<div class="card-meta">Keywords: ${job.keywords.map((k) => `<span class="tag">${esc(k)}</span>`).join('')}</div>` : ''}
+      ${job.keywords?.length ? `<div class="card-meta">Keywords: ${job.keywords.map(k => `<span class="tag">${esc(k)}</span>`).join('')}</div>` : ''}
       <div class="card-actions">
-        <button class="btn small" data-act="open" data-url="${esc(job.url || '#')}">🔗 Open</button>
-        <button class="btn small" data-act="save" data-id="${job.id}">💾 Save to DB</button>
-        <button class="btn small" data-act="email" data-id="${job.id}">✉️ Email Recruiter</button>
+        <button class="btn small" data-act="open" data-url="${esc(job.url)}">🔗 Open</button>
+        <button class="btn small" data-act="save" data-id="${job.id}">💾 Save</button>
+        <button class="btn small" data-act="email" data-id="${job.id}">✉️ Email</button>
+        <button class="btn small" data-act="apply" data-id="${job.id}">🚀 Auto-Apply</button>
       </div>`;
-    card.querySelector('[data-act="save"]').addEventListener('click', async () => {
-      const doc = { ...job, savedAt: new Date().toISOString() };
-      await DB.insert('jobs', doc);
-      toast('Saved to database ✓');
-      refreshStatCounts();
-    });
+    card.querySelector('[data-act="save"]').addEventListener('click', async () => { await DB.insert('jobs', { ...job, savedAt: new Date().toISOString() }); toast('Saved ✓'); refreshStatCounts(); });
     card.querySelector('[data-act="open"]').addEventListener('click', () => { if (job.url) window.open(job.url, '_blank'); });
-    card.querySelector('[data-act="email"]').addEventListener('click', () => {
-      DB.insert('jobs', job);
-      fillEmailFromJob(job);
-      switchView('email');
-    });
+    card.querySelector('[data-act="email"]').addEventListener('click', () => { DB.insert('jobs', job); fillEmailFromJob(job); switchView('email'); });
+    card.querySelector('[data-act="apply"]').addEventListener('click', () => { DB.insert('jobs', job); prepAutoApply(job); switchView('auto-apply'); });
     box.appendChild(card);
   });
 }
@@ -195,9 +273,16 @@ function renderScanResults(jobs) {
 function fillEmailFromJob(job) {
   $('#email-company').value = job.company || '';
   $('#email-role').value = job.title || '';
-  $('#email-fit').value = job.keywords && job.keywords.length ? ('Strong background in: ' + job.keywords.join(', ')) : '';
+  $('#email-fit').value = job.keywords?.length ? 'Strong background in: ' + job.keywords.join(', ') : '';
   const domain = (job.url || '').replace(/^https?:\/\//, '').split('/')[0];
   $('#email-to').value = 'hiring@' + domain;
+}
+
+function prepAutoApply(job) {
+  $('#aa-title').value = job.title || '';
+  $('#aa-company').value = job.company || '';
+  $('#aa-jd').value = job.description || '';
+  $('#aa-job-url').value = job.url || '';
 }
 
 /* ---------- WEB SCRAPER ---------- */
@@ -208,21 +293,14 @@ $('#scrape-form').addEventListener('submit', async (e) => {
   const btn = $('#scrape-form .btn');
   btn.disabled = true; btn.textContent = 'Scraping...';
   try {
-    const res = await fetch('/.netlify/functions/scrape', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
+    const res = await fetch('/.netlify/functions/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Scrape failed');
     renderScrapeResults(data.jobs || []);
     $('#scrape-json').classList.remove('hidden');
     $('#scrape-json').textContent = JSON.stringify(data.jobs || [], null, 2);
-  } catch (err) {
-    toast('Scrape failed: ' + err.message, true);
-  } finally {
-    btn.disabled = false; btn.textContent = '🕷️ Scrape & Structure';
-  }
+  } catch (err) { toast('Scrape failed: ' + err.message, true); }
+  finally { btn.disabled = false; btn.textContent = '🕷️ Scrape & Structure'; }
 });
 
 let lastScraped = [];
@@ -231,46 +309,25 @@ function renderScrapeResults(jobs) {
   $('#scrape-count').textContent = jobs.length;
   const box = $('#scrape-results');
   box.innerHTML = '';
-  if (!jobs.length) { box.innerHTML = '<p class="muted small">No structured listings extracted. Check the URL.</p>'; return; }
+  if (!jobs.length) { box.innerHTML = '<p class="muted small">No structured listings extracted.</p>'; return; }
   jobs.forEach((job) => {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div class="card-top">
-        <div>
-          <div class="card-title">${esc(job.title || 'Role')}</div>
-          <div class="card-sub">${esc(job.company || '')} ${job.location ? '· ' + esc(job.location) : ''}</div>
-        </div>
-        ${job.remote ? '<span class="tag">🌍 Remote</span>' : ''}
-      </div>
+      <div class="card-top"><div><div class="card-title">${esc(job.title)}</div><div class="card-sub">${esc(job.company)} ${job.location ? '· ' + esc(job.location) : ''}</div></div>
+        ${job.remote ? '<span class="tag">🌍 Remote</span>' : ''}</div>
       <div class="card-desc">${esc(clip(job.description, 200))}</div>
-      <div class="card-meta">
-        ${job.salary ? `<span>💰 ${esc(job.salary)}</span>` : ''}
-        ${job.type ? `<span>🧩 ${esc(job.type)}</span>` : ''}
-        ${job.url ? `<span>🔗 ${esc(job.url)}</span>` : ''}
-      </div>
-      ${job.requirements && job.requirements.length ? `<div class="card-meta">Requirements: ${job.requirements.map((r) => `<span class="tag">${esc(r)}</span>`).join('')}</div>` : ''}
-      <div class="card-actions">
-        <button class="btn small" data-act="save" data-id="${job.id}">💾 Save</button>
-      </div>`;
-    card.querySelector('[data-act="save"]').addEventListener('click', async () => {
-      await DB.insert('scraped', { ...job, savedAt: new Date().toISOString() });
-      toast('Scraped listing saved ✓');
-    });
+      <div class="card-meta">${job.salary ? `<span>💰 ${esc(job.salary)}</span>` : ''}${job.type ? `<span>🧩 ${esc(job.type)}</span>` : ''}${job.url ? `<span>🔗 ${esc(job.url)}</span>` : ''}</div>
+      ${job.requirements?.length ? `<div class="card-meta">Requirements: ${job.requirements.map(r => `<span class="tag">${esc(r)}</span>`).join('')}</div>` : ''}
+      <div class="card-actions"><button class="btn small" data-act="save" data-id="${job.id}">💾 Save</button>
+        <button class="btn small" data-act="apply" data-id="${job.id}">🚀 Auto-Apply</button></div>`;
+    card.querySelector('[data-act="save"]').addEventListener('click', async () => { await DB.insert('scraped', { ...job, savedAt: new Date().toISOString() }); toast('Saved ✓'); });
+    card.querySelector('[data-act="apply"]').addEventListener('click', () => { prepAutoApply(job); switchView('auto-apply'); });
     box.appendChild(card);
   });
 }
-
-$('#scrape-copy').addEventListener('click', () => {
-  if (!$('#scrape-json').textContent) return toast('Nothing to copy', true);
-  navigator.clipboard.writeText($('#scrape-json').textContent);
-  toast('JSON copied');
-});
-$('#scrape-save-all').addEventListener('click', async () => {
-  if (!lastScraped.length) return toast('Nothing to save', true);
-  await DB.insert('scraped', lastScraped.map((j) => ({ ...j, savedAt: new Date().toISOString() })));
-  toast('All saved to database ✓');
-});
+$('#scrape-copy').addEventListener('click', () => { if (!$('#scrape-json').textContent) return toast('Nothing to copy', true); navigator.clipboard.writeText($('#scrape-json').textContent); toast('JSON copied'); });
+$('#scrape-save-all').addEventListener('click', async () => { if (!lastScraped.length) return toast('Nothing to save', true); await DB.insert('scraped', lastScraped.map(j => ({ ...j, savedAt: new Date().toISOString() }))); toast('All saved ✓'); });
 
 /* ---------- RESUME BOOSTER ---------- */
 let baseResumeText = '';
@@ -279,33 +336,22 @@ $('#resume-form').addEventListener('submit', async (e) => {
   const file = $('#resume-file').files[0];
   if (!file) return toast('Choose a resume file', true);
   const btn = $('#resume-form .btn');
-  btn.disabled = true; btn.textContent = 'Extracting text...';
+  btn.disabled = true; btn.textContent = 'Extracting...';
   try {
-    const form = new FormData();
-    form.append('file', file);
+    const form = new FormData(); form.append('file', file);
     const res = await fetch('/.netlify/functions/extract-resume', { method: 'POST', body: form });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Extraction failed');
     baseResumeText = data.text || '';
-    $('#resume-file-label').textContent = '✅ ' + (file.name || 'resume uploaded');
+    $('#resume-file-label').textContent = '✅ ' + (file.name || 'resume');
     $('#resume-base-preview').classList.remove('hidden');
     $('#resume-base-text').textContent = baseResumeText;
     await DB.saveSettings({ resumeBase: baseResumeText });
     toast('Resume parsed ✓');
   } catch (err) {
-    // Offline fallback: read .txt directly
-    if (file.name.endsWith('.txt')) {
-      baseResumeText = await file.text();
-      $('#resume-base-preview').classList.remove('hidden');
-      $('#resume-base-text').textContent = baseResumeText;
-      await DB.saveSettings({ resumeBase: baseResumeText });
-      toast('Resume parsed (offline .txt mode) ✓');
-    } else {
-      toast('Extraction failed: ' + err.message, true);
-    }
-  } finally {
-    btn.disabled = false; btn.textContent = 'Upload & Parse';
-  }
+    if (file.name.endsWith('.txt')) { baseResumeText = await file.text(); $('#resume-base-preview').classList.remove('hidden'); $('#resume-base-text').textContent = baseResumeText; await DB.saveSettings({ resumeBase: baseResumeText }); toast('Resume parsed (txt mode) ✓'); }
+    else { toast('Extraction failed: ' + err.message, true); }
+  } finally { btn.disabled = false; btn.textContent = 'Upload & Parse'; }
 });
 
 $('#resume-tailor').addEventListener('click', async () => {
@@ -313,173 +359,223 @@ $('#resume-tailor').addEventListener('click', async () => {
   if (!jd) return toast('Paste a job description first', true);
   if (!baseResumeText) return toast('Upload & parse your base resume first', true);
   const kw = $('#resume-keywords').value.trim();
-  const btn = $('#resume-tailor');
-  btn.disabled = true; btn.textContent = 'Tailoring...';
-  const msg = $('#resume-msg');
-  msg.className = 'form-msg'; msg.textContent = '';
-
+  const btn = $('#resume-tailor'); btn.disabled = true; btn.textContent = 'Tailoring...';
+  const msg = $('#resume-msg'); msg.className = 'form-msg'; msg.textContent = '';
   try {
-    const res = await fetch('/.netlify/functions/tailor-resume', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resume: baseResumeText, jd, keywords: kw.split(',').map((s) => s.trim()).filter(Boolean), keepKeywords: $('#resume-keep-keywords').checked }),
-    });
+    const res = await fetch('/.netlify/functions/tailor-resume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: baseResumeText, jd, keywords: kw.split(',').map(s => s.trim()).filter(Boolean), keepKeywords: $('#resume-keep-keywords').checked }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Tailoring failed');
     $('#resume-tailor-preview').classList.remove('hidden');
     $('#resume-tailor-text').value = data.resume;
-    msg.className = 'form-msg ok'; msg.textContent = '✨ Tailored resume ready — matched keywords retained.';
-  } catch (err) {
-    msg.className = 'form-msg err';
-    msg.textContent = 'Tailoring error: ' + err.message + ' (falls back to offline keyword-matching below)';
-    // Offline fallback: naive keyword reordering
-    const fallback = offlineTailor(baseResumeText, jd, kw);
-    $('#resume-tailor-preview').classList.remove('hidden');
-    $('#resume-tailor-text').value = fallback;
-  } finally {
-    btn.disabled = false; btn.textContent = '✨ Generate Tailored Resume';
-  }
+    msg.className = 'form-msg ok'; msg.textContent = '✨ Tailored resume ready';
+  } catch (err) { msg.className = 'form-msg err'; msg.textContent = 'Error: ' + err.message; $('#resume-tailor-preview').classList.remove('hidden'); $('#resume-tailor-text').value = offlineTailor(baseResumeText, jd, kw); }
+  finally { btn.disabled = false; btn.textContent = '✨ Generate Tailored Resume'; }
 });
 
 function offlineTailor(resume, jd, kw) {
-  const kwList = kw.split(',').map((s) => s.trim()).filter(Boolean);
-  let out = resume;
-  kwList.forEach((k) => {
-    const re = new RegExp(`\\b${escapeRegExp(k)}\\b`, 'gi');
-    out = out.replace(re, (m) => m.toUpperCase());
-  });
-  return 'NOTE: Offline tailoring (no OpenAI key). Keywords from your list are emphasized with CAPS.\n\n' + out;
+  let out = resume; kw.split(',').map(s => s.trim()).filter(Boolean).forEach(k => { out = out.replace(new RegExp('\\b' + escapeRegExp(k) + '\\b', 'gi'), m => m.toUpperCase()); });
+  return 'Offline mode (add OpenAI key for AI):\n\n' + out;
 }
 function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-
-$('#resume-copy').addEventListener('click', () => {
-  navigator.clipboard.writeText($('#resume-tailor-text').value);
-  toast('Tailored resume copied');
-});
-$('#resume-download').addEventListener('click', () => {
-  const blob = new Blob([$('#resume-tailor-text').value], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'tailored_resume.txt';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  toast('Downloaded');
-});
+$('#resume-copy').addEventListener('click', () => { navigator.clipboard.writeText($('#resume-tailor-text').value); toast('Copied'); });
+$('#resume-download').addEventListener('click', () => { const blob = new Blob([$('#resume-tailor-text').value], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tailored_resume.txt'; a.click(); URL.revokeObjectURL(a.href); toast('Downloaded'); });
 
 /* ---------- COLD EMAIL ---------- */
 function renderEmailSettings() {
   const s = DB.store.state.settings;
-  $('#email-name').value = s.senderName || '';
-  $('#email-from').value = s.senderEmail || '';
-  $('#email-headline').value = s.headline || '';
+  $('#email-name').value = s.senderName || ''; $('#email-from').value = s.senderEmail || ''; $('#email-headline').value = s.headline || '';
 }
-$$('#email-settings input').forEach((i) => {
-  i.addEventListener('change', () => {
-    DB.saveSettings({
-      senderName: $('#email-name').value,
-      senderEmail: $('#email-from').value,
-      headline: $('#email-headline').value,
-    });
-  });
-});
+$$('#email-settings input').forEach(i => i.addEventListener('change', () => DB.saveSettings({ senderName: $('#email-name').value, senderEmail: $('#email-from').value, headline: $('#email-headline').value })));
 
 $('#email-generate').addEventListener('click', async () => {
-  const msg = $('#email-msg');
-  msg.className = 'form-msg'; msg.textContent = '';
-  const payload = {
-    toName: $('#email-recipient').value.trim(),
-    company: $('#email-company').value.trim(),
-    role: $('#email-role').value.trim(),
-    headline: $('#email-headline').value.trim(),
-    fit: $('#email-fit').value.trim(),
-    senderName: $('#email-name').value.trim(),
-  };
-  if (!payload.company) return toast('Enter the company name', true);
-  if (!payload.role) return toast('Enter the role', true);
+  const msg = $('#email-msg'); msg.className = 'form-msg'; msg.textContent = '';
+  const payload = { toName: $('#email-recipient').value.trim(), company: $('#email-company').value.trim(), role: $('#email-role').value.trim(), headline: $('#email-headline').value.trim(), fit: $('#email-fit').value.trim(), senderName: $('#email-name').value.trim() };
+  if (!payload.company || !payload.role) return toast('Enter company and role', true);
   try {
-    const res = await fetch('/.netlify/functions/generate-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const res = await fetch('/.netlify/functions/generate-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Generation failed');
-    $('#email-body').value = data.body;
-    msg.className = 'form-msg ok'; msg.textContent = '✨ Draft generated. Edit it, then send!';
-  } catch (err) {
-    $('#email-body').value = fallbackEmail(payload);
-    msg.className = 'form-msg ok';
-    msg.textContent = 'Draft generated (offline template). Edit it, then send!';
-  }
+    $('#email-body').value = data.body; msg.className = 'form-msg ok'; msg.textContent = '✨ Draft generated';
+  } catch (err) { $('#email-body').value = fallbackEmail(payload); msg.className = 'form-msg ok'; msg.textContent = 'Draft generated (template)'; }
 });
-
-function fallbackEmail(p) {
-  const subject = `Application: ${p.role} @ ${p.company}`;
-  return `Subject: ${subject}\n\nHi ${p.toName || 'there'},\n\nI hope you're doing well. I'm ${p.senderName || 'a candidate'}${p.headline ? `, ${p.headline}` : ''}, and I came across the ${p.role} opening at ${p.company}.${p.fit ? " Your description asks for exactly the kind of work I've been doing — " + p.fit + '.' : ' I believe my background aligns well with what your team is looking for.'}\n\nI would love the opportunity to contribute to ${p.company} and would be happy to share my resume and portfolio at your convenience.\n\nThank you for your time and consideration.\n\nWarm regards,\n${p.senderName || 'Candidate'}`;
-}
+function fallbackEmail(p) { return `Subject: Application: ${p.role} at ${p.company}\n\nHi ${p.toName || 'there'},\n\nI'm ${p.senderName || 'a candidate'}${p.headline ? ', ' + p.headline : ''}. I'm interested in the ${p.role} role at ${p.company}.${p.fit ? ' ' + p.fit : ''}\n\nI'd love to contribute to ${p.company}. Thank you for your consideration.\n\nBest,\n${p.senderName || 'Candidate'}`; }
 
 $('#email-send').addEventListener('click', async () => {
-  const body = $('#email-body').value.trim();
-  const to = $('#email-to').value.trim();
-  const msg = $('#email-msg');
-  if (!to) return toast('Enter recipient email', true);
-  if (!body) return toast('Write/generate a draft first', true);
-  const btn = $('#email-send');
-  btn.disabled = true; btn.textContent = 'Sending...';
-  msg.className = 'form-msg'; msg.textContent = '';
+  const body = $('#email-body').value.trim(), to = $('#email-to').value.trim(), msg = $('#email-msg');
+  if (!to || !body) return toast('Enter recipient and draft', true);
+  const btn = $('#email-send'); btn.disabled = true; btn.textContent = 'Sending...'; msg.className = 'form-msg'; msg.textContent = '';
   const subject = body.split('\n')[0].replace(/^Subject:\s*/i, '') || `Application — ${$('#email-role').value}`;
   try {
     const s = await DB.getAll('settings');
-    const res = await fetch('/.netlify/functions/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to,
-        from: $('#email-from').value || s.senderEmail || '',
-        subject,
-        body,
-        toName: $('#email-recipient').value,
-        apiKey: s.resendKey || '',
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || sendFailedMsg());
+    const res = await fetch('/.netlify/functions/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, from: $('#email-from').value || s.senderEmail, subject, body, toName: $('#email-recipient').value, apiKey: s.resendKey }) });
+    const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Send failed');
     await DB.insert('emails', { id: uid(), to, toName: $('#email-recipient').value, company: $('#email-company').value, role: $('#email-role').value, subject, body, sentAt: new Date().toISOString() });
-    msg.className = 'form-msg ok'; msg.textContent = '✓ Email sent!';
-    toast('Email sent ✓');
-    renderEmailLog();
-    refreshStatCounts();
-  } catch (err) {
-    // Save as "queued" so user doesn't lose the email
-    await DB.insert('emails', { id: uid(), to, toName: $('#email-recipient').value, company: $('#email-company').value, role: $('#email-role').value, subject, body, pending: true, attemptedAt: new Date().toISOString() });
-    msg.className = 'form-msg err';
-    msg.textContent = 'Not sent: ' + (err.message || '') + ' — saved to log as pending. Add a Resend API key to send.';
-    toast('Saved pending (no send key)', true);
-    renderEmailLog();
-  } finally {
-    btn.disabled = false; btn.textContent = '✉️ Send Email';
-  }
+    msg.className = 'form-msg ok'; msg.textContent = '✓ Sent!'; toast('Email sent ✓'); renderEmailLog(); refreshStatCounts();
+  } catch (err) { await DB.insert('emails', { id: uid(), to, toName: $('#email-recipient').value, company: $('#email-company').value, role: $('#email-role').value, subject, body, pending: true, attemptedAt: new Date().toISOString() }); msg.className = 'form-msg err'; msg.textContent = 'Saved as pending: ' + err.message; toast('Saved pending', true); renderEmailLog(); }
+  finally { btn.disabled = false; btn.textContent = '✉️ Send Email'; }
 });
-function sendFailedMsg() { return 'Email service error. Is a valid Resend key set?'; }
+async function renderEmailLog() { const emails = await DB.getAll('emails'); $('#email-log').innerHTML = emails.length ? '' : '<p class="muted small">No emails yet.</p>'; emails.forEach(e => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<div class="card-top"><div><div class="card-title">${esc(e.subject)}</div><div class="card-sub">To: ${esc(e.to)} ${e.pending ? '<span class="tag">⏳ Pending</span>' : '<span class="tag">✅ Sent</span>'}</div></div><span class="muted small">${new Date(e.sentAt || e.attemptedAt).toLocaleString()}</span>`; $('#email-log').appendChild(c); }); }
 
-async function renderEmailLog() {
-  const emails = await DB.getAll('emails');
-  $('#email-log').innerHTML = '';
-  if (!emails.length) { $('#email-log').innerHTML = '<p class="muted small">No emails yet.</p>'; return; }
-  emails.forEach((e) => {
-    const c = document.createElement('div');
-    c.className = 'card';
-    c.innerHTML = `
-      <div class="card-top">
-        <div>
-          <div class="card-title">${esc(e.subject || 'No subject')}</div>
-          <div class="card-sub">To: ${esc(e.to)} ${e.pending ? '<span class="tag">⏳ Pending</span>' : '<span class="tag">✅ Sent</span>'}</div>
-        </div>
-        <span class="muted small">${new Date(e.sentAt || e.attemptedAt || Date.now()).toLocaleString()}</span>
-      </div>`;
-    $('#email-log').appendChild(c);
-  });
+/* ---------- COVER LETTER ---------- */
+async function renderCoverLetterList() {
+  const list = await DB.getAll('cover_letters');
+  $('#cl-list').innerHTML = list.length ? '' : '<p class="muted small">No saved cover letters.</p>';
+  list.forEach(cl => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<div class="card-top"><div><div class="card-title">${esc(cl.company)} - ${esc(cl.role)}</div><div class="card-sub">${new Date(cl.createdAt).toLocaleDateString()}</div></div><button class="btn small" data-del="${cl.id}">🗑</button></div>`; c.querySelector('[data-del]').addEventListener('click', async () => { await DB.remove('cover_letters', cl.id); renderCoverLetterList(); }); $('#cl-list').appendChild(c); });
 }
+
+$('#cl-generate').addEventListener('click', async () => {
+  const msg = $('#cl-msg'); msg.className = 'form-msg'; msg.textContent = '';
+  if (!$('#cl-jd').value.trim() || !$('#cl-company').value.trim() || !$('#cl-role').value.trim()) return toast('Fill JD, company, role', true);
+  const btn = $('#cl-generate'); btn.disabled = true; btn.textContent = 'Generating...';
+  try {
+    const res = await fetch('/.netlify/functions/cover-letter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: baseResumeText || $('#resume-base-text').textContent || 'Experienced professional', jd: $('#cl-jd').value, company: $('#cl-company').value, role: $('#cl-role').value, sender_name: $('#cl-name').value, headline: $('#cl-headline').value, tone: $('#cl-tone').value }) });
+    const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Failed');
+    $('#cl-output').classList.remove('hidden'); $('#cl-output').value = data.cover_letter;
+    msg.className = 'form-msg ok'; msg.textContent = '✨ Generated';
+  } catch (err) { msg.className = 'form-msg err'; msg.textContent = err.message; }
+  finally { btn.disabled = false; btn.textContent = '✨ Generate Cover Letter'; }
+});
+$('#cl-copy').addEventListener('click', () => { navigator.clipboard.writeText($('#cl-output').value); toast('Copied'); });
+$('#cl-download').addEventListener('click', () => { const blob = new Blob([$('#cl-output').value], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cover_letter.txt'; a.click(); URL.revokeObjectURL(a.href); toast('Downloaded'); });
+$('#cl-save').addEventListener('click', async () => { if (!$('#cl-output').value) return toast('Generate first', true); await DB.insert('cover_letters', { id: uid(), company: $('#cl-company').value, role: $('#cl-role').value, content: $('#cl-output').value, createdAt: new Date().toISOString() }); toast('Saved ✓'); renderCoverLetterList(); });
+
+/* ---------- ATS OPTIMIZER ---------- */
+async function renderATSList() { /* placeholder */ }
+
+$('#ats-analyze').addEventListener('click', async () => {
+  const msg = $('#ats-msg'); msg.className = 'form-msg'; msg.textContent = '';
+  if (!$('#ats-resume').value.trim() || !$('#ats-jd').value.trim()) return toast('Fill resume and JD', true);
+  const btn = $('#ats-analyze'); btn.disabled = true; btn.textContent = 'Analyzing...';
+  try {
+    const res = await fetch('/.netlify/functions/ats-optimize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: $('#ats-resume').value, jd: $('#ats-jd').value, keywords: $('#ats-keywords').value.split(',').map(s => s.trim()).filter(Boolean), target_role: $('#ats-role').value }) });
+    const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Failed');
+    $('#ats-output').classList.remove('hidden'); $('#ats-output').value = data.resume;
+    renderATSAnalysis(data.analysis);
+    msg.className = 'form-msg ok'; msg.textContent = '✨ Optimized';
+  } catch (err) { msg.className = 'form-msg err'; msg.textContent = err.message; }
+  finally { btn.disabled = false; btn.textContent = '🔍 Analyze & Optimize'; }
+});
+
+function renderATSAnalysis(a) {
+  if (!a) return;
+  $('#ats-score').textContent = a.ats_score_estimate + '%';
+  $('#ats-analysis').classList.remove('hidden');
+  $('#ats-analysis').innerHTML = `
+    <div class="ats-metric"><div class="ats-metric-label">Keyword Coverage</div><div class="ats-metric-value ${a.keyword_coverage.includes('100%') ? 'good' : a.keyword_coverage.includes('0%') ? 'bad' : 'warn'}">${a.keyword_coverage}</div></div>
+    <div class="ats-metric"><div class="ats-metric-label">Standard Sections</div><div class="ats-metric-value ${a.standard_sections >= 5 ? 'good' : 'warn'}">${a.standard_sections}</div></div>
+    <div class="ats-metric"><div class="ats-metric-label">Action Verbs</div><div class="ats-metric-value ${a.action_verbs_used >= 5 ? 'good' : 'warn'}">${a.action_verbs_used}</div></div>
+    <div class="ats-metric"><div class="ats-metric-label">Quantified Achievements</div><div class="ats-metric-value ${a.quantified_achievements >= 3 ? 'good' : 'warn'}">${a.quantified_achievements}</div></div>
+    <div class="ats-recommendations"><h4>Recommendations</h4><ul>${a.recommendations.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>`;
+}
+$('#ats-copy').addEventListener('click', () => { navigator.clipboard.writeText($('#ats-output').value); toast('Copied'); });
+$('#ats-download').addEventListener('click', () => { const blob = new Blob([$('#ats-output').value], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ats_resume.txt'; a.click(); URL.revokeObjectURL(a.href); toast('Downloaded'); });
+
+/* ---------- SALARY ESTIMATOR ---------- */
+async function renderSalaryList() {
+  const list = await DB.getAll('salary_estimates');
+  $('#sal-list').innerHTML = list.length ? '' : '<p class="muted small">No saved estimates.</p>';
+  list.forEach(s => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<div class="card-top"><div><div class="card-title">${esc(s.role)} @ ${esc(s.location)}</div><div class="card-sub">$${s.estimated_salary?.low?.toLocaleString()} - $${s.estimated_salary?.high?.toLocaleString()}</div></div><button class="btn small" data-del="${s.id}">🗑</button></div>`; c.querySelector('[data-del]').addEventListener('click', async () => { await DB.remove('salary_estimates', s.id); renderSalaryList(); }); $('#sal-list').appendChild(c); });
+}
+
+$('#salary-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('#salary-form .btn'); btn.disabled = true; btn.textContent = 'Estimating...';
+  try {
+    const res = await fetch('/.netlify/functions/salary-estimate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: $('#sal-role').value, location: $('#sal-location').value, experience_years: $('#sal-exp').value, skills: $('#sal-skills').value.split(',').map(s => s.trim()).filter(Boolean), industry: $('#sal-industry').value, company_size: $('#sal-size').value }) });
+    const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Failed');
+    renderSalaryResult(data); $('#sal-result').classList.remove('hidden');
+  } catch (err) { toast('Error: ' + err.message, true); }
+  finally { btn.disabled = false; btn.textContent = '💰 Estimate Salary'; }
+});
+
+function renderSalaryResult(d) {
+  $('#sal-result').innerHTML = `
+    <div class="sal-card primary"><h4>Estimated Annual Salary</h4><div class="sal-amount">$${d.estimated_salary.mid.toLocaleString()}</div>
+      <div class="sal-range"><span>Low: $${d.estimated_salary.low.toLocaleString()}</span><span>High: $${d.estimated_salary.high.toLocaleString()}</span></div>
+    </div>
+    <div class="sal-card"><h4>Equity</h4><div class="sal-amount">${d.equity.type}</div><div>${d.equity.range} • ${d.equity.vesting}</div></div>
+    <div class="sal-breakdown"><h4>Breakdown</h4><div class="sal-breakdown-grid">
+      <div class="sal-breakdown-item"><div class="sal-breakdown-label">Base Role</div><div class="sal-breakdown-value">$${d.breakdown.base_role.toLocaleString()}</div></div>
+      <div class="sal-breakdown-item"><div class="sal-breakdown-label">Location</div><div class="sal-breakdown-value">${d.breakdown.location_multiplier}x</div></div>
+      <div class="sal-breakdown-item"><div class="sal-breakdown-label">Experience</div><div class="sal-breakdown-value">${d.breakdown.experience_multiplier}x</div></div>
+      <div class="sal-breakdown-item"><div class="sal-breakdown-label">Industry</div><div class="sal-breakdown-value">${d.breakdown.industry_multiplier}x</div></div>
+      <div class="sal-breakdown-item"><div class="sal-breakdown-label">Company Size</div><div class="sal-breakdown-value">${d.breakdown.company_size_multiplier}x</div></div>
+      <div class="sal-breakdown-item"><div class="sal-breakdown-label">Skill Premiums</div><div class="sal-breakdown-value">+$${d.breakdown.skill_premiums.toLocaleString()}</div></div>
+    </div></div>
+    <div class="sal-benefits"><h4>Typical Benefits</h4><ul>${d.benefits.map(b => `<li>${esc(b)}</li>`).join('')}</ul></div>
+    <p class="muted small">${d.note}</p>`;
+}
+
+/* ---------- AUTO APPLY ---------- */
+async function renderAutoApplyHistory() {
+  const list = await DB.getAll('applications');
+  $('#aa-history').innerHTML = list.length ? '' : '<p class="muted small">No applications sent yet.</p>';
+  list.forEach(a => { const c = document.createElement('div'); c.className = 'card aa-history-item'; c.innerHTML = `<div class="aa-history-header"><span class="aa-history-company">${esc(a.company)} - ${esc(a.role)}</span><span class="aa-history-status ${a.status}">${a.status}</span></div><div class="aa-history-details">Sent to ${a.contacts_sent} contacts • ${new Date(a.sentAt).toLocaleString()}</div>`; $('#aa-history').appendChild(c); });
+}
+
+let aaContacts = [];
+
+$('#aa-find-contacts').addEventListener('click', () => {
+  if (!$('#aa-company').value.trim()) return toast('Enter company name', true);
+  const domain = $('#aa-company').value.toLowerCase().replace(/\s+/g, '') + '.com';
+  aaContacts = [
+    { email: `hiring@${domain}`, name: 'Hiring Team', role: 'Recruiting' },
+    { email: `recruiting@${domain}`, name: 'Recruiting', role: 'Talent Acquisition' },
+    { email: `jobs@${domain}`, name: 'Jobs', role: 'HR' },
+    { email: `talent@${domain}`, name: 'Talent', role: 'TA' },
+  ];
+  renderAAContacts();
+  $('#aa-msg').className = 'form-msg ok'; $('#aa-msg').textContent = 'Generated likely contacts';
+});
+
+$('#aa-scrape-contacts').addEventListener('click', async () => {
+  const url = $('#aa-job-url').value.trim() || $('#aa-company').value.trim();
+  if (!url) return toast('Enter job URL or company', true);
+  $('#aa-msg').className = 'form-msg'; $('#aa-msg').textContent = 'Scraping...';
+  try {
+    const res = await fetch('/.netlify/functions/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url.startsWith('http') ? url : 'https://' + url }) });
+    const data = await res.json();
+    if (data.jobs?.length) {
+      const j = data.jobs[0];
+      aaContacts = [{ email: `hiring@${extractDomain(url)}`, name: 'Hiring Team', role: 'Recruiting' }];
+      $('#aa-title').value = j.title || $('#aa-title').value;
+      $('#aa-company').value = j.company || $('#aa-company').value;
+      $('#aa-jd').value = j.description || $('#aa-jd').value;
+    }
+    renderAAContacts();
+    $('#aa-msg').className = 'form-msg ok'; $('#aa-msg').textContent = 'Scraped & found contacts';
+  } catch (err) { $('#aa-msg').className = 'form-msg err'; $('#aa-msg').textContent = err.message; }
+});
+
+function renderAAContacts() {
+  const box = $('#aa-contacts'); box.innerHTML = '';
+  if (!aaContacts.length) { box.innerHTML = '<p class="muted small">No contacts yet. Click "Find Contacts" or add manually.</p>'; return; }
+  aaContacts.forEach((c, i) => { const card = document.createElement('div'); card.className = 'card aa-contact-card'; card.innerHTML = `<div class="aa-contact-header"><span class="aa-contact-name">${esc(c.name)}</span><span class="aa-contact-role">${esc(c.role)}</span></div><div class="aa-contact-email">${esc(c.email)}</div><div class="aa-contact-actions"><button class="btn small" data-del="${i}">🗑 Remove</button></div>`; card.querySelector('[data-del]').addEventListener('click', () => { aaContacts.splice(i, 1); renderAAContacts(); }); box.appendChild(card); });
+}
+
+$('#aa-add-contact').addEventListener('click', () => {
+  const email = prompt('Contact email:'); if (!email) return;
+  const name = prompt('Contact name:') || 'Contact';
+  const role = prompt('Role/Title:') || 'Recruiter';
+  aaContacts.push({ email, name, role }); renderAAContacts();
+});
+
+function extractDomain(u) { return (u || '').replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].replace(/\s+/g, '').toLowerCase() + '.com'; }
+
+$('#aa-send-all').addEventListener('click', async () => {
+  if (!aaContacts.length) return toast('No contacts', true);
+  if (!$('#aa-name').value.trim() || !$('#aa-email').value.trim()) return toast('Enter your name and email', true);
+  const msg = $('#aa-send-msg'); msg.className = 'form-msg'; msg.textContent = '';
+  const btn = $('#aa-send-all'); btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch('/.netlify/functions/auto-apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job: { id: uid(), title: $('#aa-title').value, company: $('#aa-company').value, location: '', url: $('#aa-job-url').value, description: $('#aa-jd').value, contacts: aaContacts }, resume: $('#aa-resume').value || baseResumeText, cover_letter: $('#aa-cover').value, sender: { name: $('#aa-name').value, email: $('#aa-email').value, headline: $('#aa-headline').value, linkedin: $('#aa-linkedin').value, portfolio: $('#aa-portfolio').value }, options: { dry_run: $('#aa-dry-run').checked, delay_ms: 1500 } }) });
+    const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Failed');
+    await DB.insert('applications', { id: uid(), company: $('#aa-company').value, role: $('#aa-title').value, contacts_sent: data.results.filter(r => r.status === 'sent').length, status: $('#aa-dry-run').checked ? 'dry_run' : (data.sent > 0 ? 'sent' : 'failed'), results: data.results, sentAt: new Date().toISOString() });
+    msg.className = 'form-msg ok'; msg.textContent = `Done: ${data.sent} sent, ${data.total - data.sent} failed/dry-run`;
+    renderAutoApplyHistory();
+  } catch (err) { msg.className = 'form-msg err'; msg.textContent = err.message; }
+  finally { btn.disabled = false; btn.textContent = '🚀 Send Applications'; }
+});
 
 /* ---------- DATABASE VIEW ---------- */
 async function renderDatabase() {
@@ -488,66 +584,34 @@ async function renderDatabase() {
   const recruiters = await DB.getAll('recruiters');
   $('#db-jobs-count').textContent = jobs.length + scraped.length;
   $('#db-recruiters-count').textContent = recruiters.length;
-
-  const rc = $('#db-recruiters');
-  rc.innerHTML = '';
-  if (!recruiters.length) rc.innerHTML = '<p class="muted small">No recruiters/leads yet. Save opportunities to build your list.</p>';
-  recruiters.forEach((r) => {
-    const c = document.createElement('div');
-    c.className = 'card';
-    c.innerHTML = `
-      <div class="card-top">
-        <div><div class="card-title">${esc(r.company || '')}</div><div class="card-sub">${esc(r.email || r.contact || '')}</div></div>
-        <button class="btn small" data-del="${r.id}">🗑</button>
-      </div>`;
-    c.querySelector('[data-del]').addEventListener('click', async () => { await DB.remove('recruiters', r.id); renderDatabase(); });
-    rc.appendChild(c);
-  });
-
-  const jc = $('#db-jobs');
-  jc.innerHTML = '';
+  const rc = $('#db-recruiters'); rc.innerHTML = '';
+  if (!recruiters.length) rc.innerHTML = '<p class="muted small">No recruiters yet.</p>';
+  recruiters.forEach(r => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<div class="card-top"><div><div class="card-title">${esc(r.company)}</div><div class="card-sub">${esc(r.email || r.contact)}</div></div><button class="btn small" data-del="${r.id}">🗑</button></div>`; c.querySelector('[data-del]').addEventListener('click', async () => { await DB.remove('recruiters', r.id); renderDatabase(); }); rc.appendChild(c); });
+  const jc = $('#db-jobs'); jc.innerHTML = '';
   const all = [...jobs, ...scraped];
-  if (!all.length) jc.innerHTML = '<p class="muted small">No saved jobs yet.</p>';
-  all.forEach((j) => {
-    const c = document.createElement('div');
-    c.className = 'card';
-    c.innerHTML = `
-      <div class="card-top">
-        <div><div class="card-title">${esc(j.title || 'Role')} @ ${esc(j.company || '')}</div><div class="card-sub">${esc(j.location || '')} · saved ${new Date(j.savedAt || j.createdAt || Date.now()).toLocaleDateString()}</div></div>
-        <button class="btn small" data-del="${j.id}">🗑</button>
-      </div>`;
-    c.querySelector('[data-del]').addEventListener('click', async () => { await DB.remove('jobs', j.id); await DB.remove('scraped', j.id); renderDatabase(); });
-    jc.appendChild(c);
-  });
+  if (!all.length) jc.innerHTML = '<p class="muted small">No saved jobs.</p>';
+  all.forEach(j => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<div class="card-top"><div><div class="card-title">${esc(j.title)} @ ${esc(j.company)}</div><div class="card-sub">${esc(j.location)} · ${new Date(j.savedAt || j.createdAt).toLocaleDateString()}</div></div><button class="btn small" data-del="${j.id}">🗑</button></div>`; c.querySelector('[data-del]').addEventListener('click', async () => { await DB.remove('jobs', j.id); await DB.remove('scraped', j.id); renderDatabase(); }); jc.appendChild(c); });
 }
 
 /* ---------- EXPORTS ---------- */
 $('#db-export').addEventListener('click', () => download('database.json', DB.exportAll()));
 $('#export-data').addEventListener('click', () => download('database.json', DB.exportAll()));
-function download(name, content) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  toast('Exported ' + name);
-}
+function download(name, content) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type: 'application/json' })); a.download = name; a.click(); URL.revokeObjectURL(a.href); toast('Exported ' + name); }
 
 /* ---------- UTIL ---------- */
-function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({ '&': '&', '<': '<', '>': '>', '"': '"' }[c])); }
 function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
+function uid() { return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
 /* ---------- INIT ---------- */
 (async function init() {
   loadSupabaseClient();
-  // Pick up resume base stored in settings from prior session
   const s = await DB.getAll('settings');
-  if (s.resumeBase) {
-    baseResumeText = s.resumeBase;
-    $('#resume-base-preview').classList.remove('hidden');
-    $('#resume-base-text').textContent = baseResumeText;
-    $('#resume-file-label').textContent = '✅ Resume loaded from previous session';
-  }
+  if (s.resumeBase) { baseResumeText = s.resumeBase; $('#resume-base-preview').classList.remove('hidden'); $('#resume-base-text').textContent = baseResumeText; $('#resume-file-label').textContent = '✅ Resume loaded'; }
+  if (s.senderName) { $('#email-name').value = s.senderName; $('#cl-name').value = s.senderName; $('#aa-name').value = s.senderName; }
+  if (s.senderEmail) { $('#email-from').value = s.senderEmail; $('#aa-email').value = s.senderEmail; }
+  if (s.headline) { $('#email-headline').value = s.headline; $('#cl-headline').value = s.headline; $('#aa-headline').value = s.headline; }
+  await checkAuthState();
   await renderDashboard();
   await renderEmailLog();
 })();

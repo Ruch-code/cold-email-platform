@@ -1,11 +1,10 @@
 /**
- * DB Layer
- * LocalStorage-backed database with a Supabase-ready interface.
- * Swap `storage` to Supabase by setting SUPABASE_URL/SUPABASE_ANON_KEY.
+ * DB Layer - User-isolated with Supabase RLS support
+ * Falls back to localStorage when Supabase not configured
  */
 const DB = (() => {
-  const PREFIX = 'hiredhunter_v1_';
-  const COLLECTIONS = ['jobs', 'scraped', 'recruiters', 'emails', 'settings', 'resume', 'alerts'];
+  const PREFIX = 'hiredhunter_v2_';
+  const COLLECTIONS = ['jobs', 'scraped', 'recruiters', 'emails', 'settings', 'resume', 'alerts', 'cover_letters', 'applications', 'salary_estimates'];
 
   function defaultData() {
     return {
@@ -16,6 +15,9 @@ const DB = (() => {
       settings: { resendKey: '', openaiKey: '', senderName: '', senderEmail: '', headline: '' },
       resume: null,
       alerts: [],
+      cover_letters: [],
+      applications: [],
+      salary_estimates: [],
     };
   }
 
@@ -36,17 +38,28 @@ const DB = (() => {
   const store = { state: load() };
   const persist = () => save(store.state);
 
+  function isAuthed() {
+    return window.SUPABASE_CLIENT && window.SUPABASE_USER;
+  }
+
+  function getUserId() {
+    return window.SUPABASE_USER?.id || 'local';
+  }
+
   const db = {
     get collection() { return store.state; },
 
     isSupabase() {
-      return typeof window !== 'undefined' && window.SUPABASE_CLIENT;
+      return isAuthed();
     },
 
-    /** Async-friendly upsert. Falls back to localStorage. */
     async upsert(collection, doc) {
       if (db.isSupabase()) {
-        return window.SUPABASE_CLIENT.from(collection).upsert(doc);
+        const supabase = window.SUPABASE_CLIENT;
+        const { data, error } = await supabase
+          .from(collection)
+          .upsert({ ...doc, user_id: getUserId() });
+        return { data, error };
       }
       const list = store.state[collection] || [];
       const idx = list.findIndex((d) => d.id === doc.id);
@@ -62,22 +75,44 @@ const DB = (() => {
       for (const d of items) {
         if (!d.id) d.id = uid();
         d.createdAt = d.createdAt || new Date().toISOString();
+        d.user_id = getUserId();
         await db.upsert(collection, d);
       }
       return items;
     },
 
-    async getAll(collection) {
+    async getAll(collection, opts = {}) {
       if (db.isSupabase()) {
-        const { data } = await window.SUPABASE_CLIENT.from(collection).select('*');
+        const supabase = window.SUPABASE_CLIENT;
+        let query = supabase.from(collection).select('*').eq('user_id', getUserId());
+        if (opts.order) query = query.order(opts.order.column, { ascending: opts.order.asc });
+        if (opts.limit) query = query.limit(opts.limit);
+        const { data, error } = await query;
+        if (error) throw error;
         return data || [];
       }
       return store.state[collection] || [];
     },
 
+    async getOne(collection, id) {
+      if (db.isSupabase()) {
+        const supabase = window.SUPABASE_CLIENT;
+        const { data, error } = await supabase
+          .from(collection)
+          .select('*')
+          .eq('id', id)
+          .eq('user_id', getUserId())
+          .single();
+        return { data, error };
+      }
+      const item = (store.state[collection] || []).find((d) => d.id === id);
+      return { data: item || null, error: item ? null : { message: 'Not found' } };
+    },
+
     async remove(collection, id) {
       if (db.isSupabase()) {
-        return window.SUPABASE_CLIENT.from(collection).delete().eq('id', id);
+        const supabase = window.SUPABASE_CLIENT;
+        return supabase.from(collection).delete().eq('id', id).eq('user_id', getUserId());
       }
       store.state[collection] = (store.state[collection] || []).filter((d) => d.id !== id);
       persist();
@@ -90,8 +125,8 @@ const DB = (() => {
       return store.state.settings;
     },
 
-    async saveResume(resume, isTailored) {
-      store.state.resume = { base: !isTailored ? resume : store.state.resume.base, ...(isTailored ? {} : {}) };
+    async saveResume(resume) {
+      store.state.resume = resume;
       persist();
       return store.state.resume;
     },
@@ -103,6 +138,28 @@ const DB = (() => {
 
     exportAll() {
       return JSON.stringify(store.state, null, 2);
+    },
+
+    onAuthChange(user) {
+      window.SUPABASE_USER = user;
+      if (user) {
+        this.loadFromSupabase();
+      } else {
+        store.state = load();
+      }
+    },
+
+    async loadFromSupabase() {
+      if (!db.isSupabase()) return;
+      try {
+        for (const col of COLLECTIONS) {
+          const data = await db.getAll(col, { order: { column: 'createdAt', asc: false } });
+          store.state[col] = data;
+        }
+        persist();
+      } catch (e) {
+        console.error('Failed to load from Supabase:', e);
+      }
     },
   };
 
@@ -117,4 +174,17 @@ function loadSupabaseClient() {
   if (!window.JS_ENV || !window.JS_ENV.SUPABASE_URL || !window.JS_ENV.SUPABASE_ANON_KEY) return;
   if (typeof window.supabase === 'undefined') return;
   window.SUPABASE_CLIENT = window.supabase.createClient(window.JS_ENV.SUPABASE_URL, window.JS_ENV.SUPABASE_ANON_KEY);
+
+  // Listen for auth changes
+  window.SUPABASE_CLIENT.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) {
+      window.SUPABASE_USER = session.user;
+      await DB.loadFromSupabase();
+      if (typeof renderDashboard === 'function') renderDashboard();
+    } else if (event === 'SIGNED_OUT') {
+      window.SUPABASE_USER = null;
+      DB.clear();
+      if (typeof renderDashboard === 'function') renderDashboard();
+    }
+  });
 }
