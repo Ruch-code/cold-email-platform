@@ -37,3 +37,4 @@ Create `.env` (see `.env.example`):
 3. Set the env vars above.
 4. Deploy — any push to `main` auto-deploys.
 # auto-deploy test
+# test auto-deploy
