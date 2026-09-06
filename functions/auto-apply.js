@@ -109,11 +109,13 @@ function extractDomain(urlOrCompany) {
 }
 
 function extractTopSkills(resume) {
+  if (!resume) return [];
   const skills = ['React', 'TypeScript', 'Node.js', 'Python', 'AWS', 'Docker', 'Kubernetes', 'PostgreSQL', 'MongoDB', 'GraphQL', 'REST API', 'CI/CD', 'Microservices', 'System Design', 'Agile', 'Testing', 'Java', 'Go', 'Rust', 'C++', 'Next.js', 'Vue', 'Angular', 'Redis', 'Kafka', 'Terraform'];
   return skills.filter(s => resume.toLowerCase().includes(s.toLowerCase()));
 }
 
 function extractTopAchievement(resume) {
+  if (!resume) return '';
   const lines = resume.split('\n').filter(l => /\d+%|\$\d+|\d+\s*(years?|months?|users?|customers?|requests?)/i.test(l));
   return lines[0]?.replace(/^[-•\s]+/, '').trim() || '';
 }

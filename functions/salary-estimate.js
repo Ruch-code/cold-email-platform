@@ -83,15 +83,21 @@ exports.handler = async (event) => {
 
   const companySizeMult = company_size === 'startup' ? 0.9 : company_size === 'enterprise' ? 1.1 : 1.0;
 
+  // Use additive adjustment model instead of pure compounding
   const base = roleData.base;
-  const estimated = Math.round(base * locationMult * expMult * industryMult * companySizeMult) + skillPremium;
+  const adjustedBase = base * locationMult;
+  const experienceAdj = adjustedBase * (expMult - 1) * 0.5; // dampen experience impact
+  const industryAdj = adjustedBase * (industryMult - 1) * 0.5; // dampen industry impact
+  const sizeAdj = adjustedBase * (companySizeMult - 1) * 0.5; // dampen size impact
+
+  const estimated = Math.round(adjustedBase + experienceAdj + industryAdj + sizeAdj + skillPremium);
   const range = {
     low: Math.round(estimated * 0.85),
     mid: estimated,
     high: Math.round(estimated * 1.2),
   };
 
-  const equity = estimateEquity(company_size, role, location);
+  const equity = estimateEquity(company_size, role, industry);
   const benefits = estimateBenefits(company_size, location);
 
   return json({
@@ -115,12 +121,12 @@ exports.handler = async (event) => {
   });
 };
 
-function estimateEquity(size, role, location) {
+function estimateEquity(size, role, industry) {
   if (size === 'startup' || size === 'early') {
     const roleEquity = ['staff engineer', 'principal engineer', 'engineering manager', 'tech lead'].includes(role.toLowerCase()) ? '0.1-0.5%' : '0.01-0.1%';
     return { type: 'ISO/NSO', range: roleEquity, vesting: '4 years, 1yr cliff' };
   }
-  if (['big tech', 'faang', 'unicorn'].includes((location || '').toLowerCase())) {
+  if (['big tech', 'faang', 'unicorn'].includes((industry || '').toLowerCase())) {
     return { type: 'RSU', range: '$50k-$300k over 4 years', vesting: '4 years, quarterly' };
   }
   return { type: 'Typically none', range: 'N/A', vesting: 'N/A' };
