@@ -11,7 +11,7 @@
 <body>
   <div class="app">
     <aside class="sidebar" id="sidebar">
-      <div class="brand">
+      <div class="brand" data-parallax="0.15">
         <div class="brand-logo">H</div>
         <div class="brand-text">
           <strong>HiredHunter</strong>
@@ -21,6 +21,9 @@
       <nav class="nav">
         <button class="nav-item active" data-view="dashboard">
           <span class="nav-icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" data-view="remote">
+          <span class="nav-icon">🌍</span> Remote Jobs
         </button>
         <button class="nav-item" data-view="scanner">
           <span class="nav-icon">🔍</span> Job Scanner
@@ -65,7 +68,7 @@
     <main class="main">
       <!-- DASHBOARD -->
       <section id="view-dashboard" class="view active">
-        <header class="page-head">
+        <header class="page-head" data-parallax="0.08">
           <div>
             <h1>Dashboard</h1>
             <p class="sub">Your job hunt, all in one place.</p>
@@ -93,22 +96,6 @@
         </div>
 
         <div class="panel">
-          <h3>🔐 Step 1 — Add your API keys</h3>
-          <p class="muted">Powered by <b>Resend</b> for sending emails and <b>OpenAI</b> for AI resume tailoring & email generation.</p>
-          <form id="settings-form" class="settings-form">
-            <label>Resend API Key
-              <input type="password" id="set-resend" placeholder="re_..." />
-            </label>
-            <label>OpenAI API Key (optional)
-              <input type="password" id="set-openai" placeholder="sk-..." />
-            </label>
-            <button class="btn primary" type="submit">Save Keys</button>
-            <span class="form-msg" id="settings-msg"></span>
-          </form>
-          <p class="muted small">⚠️ Keys stored in your browser <b>only</b>. On production, set them as Netlify env vars instead — the Netlify functions read <code>RESEND_API_KEY</code> & <code>OPENAI_API_KEY</code> automatically.</p>
-        </div>
-
-        <div class="panel">
           <h3>🚀 How it works</h3>
           <ol class="steps">
             <li><b>Scan</b> — enter keywords (e.g. "React, Node, remote") and find matching job opportunities.</li>
@@ -119,9 +106,73 @@
         </div>
       </section>
 
+      <!-- REMOTE JOBS -->
+      <section id="view-remote" class="view">
+        <header class="page-head" data-parallax="0.08">
+          <div>
+            <h1>🌍 Remote Opportunities</h1>
+            <p class="sub">Aggregated remote jobs from top sources. Search, save, and apply.</p>
+          </div>
+        </header>
+
+        <div class="panel">
+          <h3>Remote Job Sources</h3>
+          <p class="muted small">Pre-configured sources for remote-first companies. Add your own below.</p>
+          <div id="remote-sources" class="card-list"></div>
+          <div class="field-row" style="margin-top: 16px;">
+            <label class="grow">Add Custom Remote Source
+              <input type="url" id="remote-custom-url" placeholder="https://company.com/careers or https://jobs.lever.co/company" />
+            </label>
+            <label>Source Name
+              <input type="text" id="remote-custom-name" placeholder="Company Name" />
+            </label>
+            <button class="btn primary" id="remote-add-source">＋ Add Source</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <form id="remote-search-form" class="scan-form">
+            <div class="field-row">
+              <label class="grow">Search Keywords
+                <input type="text" id="remote-keywords" placeholder='e.g. "React, TypeScript, Senior, Full Stack"' />
+              </label>
+              <label class="grow">Role / Title
+                <input type="text" id="remote-role" placeholder="e.g. Senior Frontend Engineer" />
+              </label>
+            </div>
+            <div class="field-row">
+              <label>Time Posted
+                <select id="remote-time">
+                  <option value="">Any time</option>
+                  <option value="24h">Last 24 hours</option>
+                  <option value="week">Last week</option>
+                  <option value="month">Last month</option>
+                </select>
+              </label>
+              <label>Source Filter
+                <select id="remote-source-filter">
+                  <option value="all">All Sources</option>
+                </select>
+              </label>
+            </div>
+            <button class="btn primary" type="submit">🔍 Search All Remote Jobs</button>
+            <button class="btn" type="button" id="remote-save-alert">＋ Save as Alert</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Remote Opportunities</h3>
+            <span class="badge" id="remote-count">0</span>
+          </div>
+          <p class="muted small" id="remote-hint">Enter keywords and search across all configured remote sources.</p>
+          <div id="remote-results" class="card-list"></div>
+        </div>
+      </section>
+
       <!-- JOB SCANNER -->
       <section id="view-scanner" class="view">
-        <header class="page-head">
+        <header class="page-head" data-parallax="0.06">
           <div>
             <h1>Job Scanner</h1>
             <p class="sub">Search opportunities by keyword, review, and save to the database.</p>
@@ -345,17 +396,19 @@
       <section id="view-login" class="view">
         <header class="page-head">
           <div>
-            <h1>Sign In</h1>
-            <p class="sub">Access your personalized job hunt dashboard.</p>
+            <h1>Access Portal</h1>
+            <p class="sub">Sign in, request access, or manage users (admin).</p>
           </div>
         </header>
 
         <div class="panel auth-panel">
           <div class="auth-tabs">
             <button class="auth-tab active" data-tab="login">Sign In</button>
-            <button class="auth-tab" data-tab="signup">Create Account</button>
+            <button class="auth-tab" data-tab="request">Request Access</button>
+            <button class="auth-tab" data-tab="admin">Admin Login</button>
           </div>
 
+          <!-- SIGN IN TAB -->
           <form id="login-form" class="auth-form">
             <label>Email
               <input type="email" id="login-email" placeholder="you@example.com" required />
@@ -367,34 +420,75 @@
             <div class="form-msg" id="login-msg"></div>
           </form>
 
-          <form id="signup-form" class="auth-form hidden">
+          <!-- REQUEST ACCESS TAB -->
+          <form id="request-form" class="auth-form hidden">
+            <p class="muted small">Don't have access yet? Submit a request. An admin will review and approve within 24 hours.</p>
             <label>Full Name
-              <input type="text" id="signup-name" placeholder="Jane Doe" required />
+              <input type="text" id="req-name" placeholder="Jane Doe" required />
             </label>
             <label>Email
-              <input type="email" id="signup-email" placeholder="you@example.com" required />
+              <input type="email" id="req-email" placeholder="you@example.com" required />
             </label>
-            <label>Password
-              <input type="password" id="signup-password" placeholder="••••••••" minlength="8" required />
+            <label>Why do you need access?
+              <textarea id="req-reason" rows="3" placeholder="e.g. Looking for Senior Frontend roles, need to optimize resume and apply efficiently..." required></textarea>
             </label>
-            <label>Confirm Password
-              <input type="password" id="signup-confirm" placeholder="••••••••" required />
+            <label>Current Role / Experience
+              <input type="text" id="req-role" placeholder="e.g. Senior Software Engineer, 5 years React/Node" />
             </label>
-            <button class="btn primary" type="submit">Create Account</button>
-            <div class="form-msg" id="signup-msg"></div>
+            <button class="btn primary" type="submit">Submit Request</button>
+            <div class="form-msg" id="request-msg"></div>
           </form>
 
-          <p class="muted small" id="auth-hint">Uses Supabase Auth. Configure SUPABASE_URL and SUPABASE_ANON_KEY in Netlify env vars.</p>
+          <!-- ADMIN LOGIN TAB -->
+          <form id="admin-login-form" class="auth-form hidden">
+            <p class="muted small">Admin credentials are configured in Netlify environment variables.</p>
+            <label>Admin Username
+              <input type="text" id="admin-username" placeholder="admin" required />
+            </label>
+            <label>Admin Password
+              <input type="password" id="admin-password" placeholder="••••••••" required />
+            </label>
+            <button class="btn primary" type="submit">Admin Sign In</button>
+            <div class="form-msg" id="admin-login-msg"></div>
+          </form>
+
+          <p class="muted small" id="auth-hint">Configure SUPABASE_URL and SUPABASE_ANON_KEY in Netlify env vars for full features.</p>
         </div>
 
+        <!-- LOGGED IN USER VIEW -->
         <div class="panel auth-logged-out hidden" id="logged-in-view">
           <h3>Welcome back, <span id="user-name"></span></h3>
           <p class="muted">Your data is synced and private.</p>
           <div class="auth-user-info">
             <div><strong>Email:</strong> <span id="user-email"></span></div>
+            <div><strong>Status:</strong> <span id="user-status" class="status-badge">Approved</span></div>
             <div><strong>Plan:</strong> <span id="user-plan">Free</span></div>
           </div>
           <button class="btn" id="btn-logout">Sign Out</button>
+        </div>
+
+        <!-- ADMIN DASHBOARD -->
+        <div class="panel auth-logged-out hidden" id="admin-dashboard">
+          <h3>👑 Admin Dashboard</h3>
+          <p class="muted small">Review and approve access requests.</p>
+          <div class="admin-stats">
+            <div class="stat-mini"><span id="admin-pending-count">0</span> Pending</div>
+            <div class="stat-mini"><span id="admin-approved-count">0</span> Approved</div>
+            <div class="stat-mini"><span id="admin-rejected-count">0</span> Rejected</div>
+          </div>
+          <div id="admin-requests" class="card-list"></div>
+          <button class="btn" id="btn-admin-logout">Sign Out (Admin)</button>
+        </div>
+
+        <!-- ACCESS STATUS VIEW (for pending/rejected users) -->
+        <div class="panel auth-logged-out hidden" id="access-status-view">
+          <div class="status-card" id="status-card">
+            <div class="status-icon" id="status-icon">⏳</div>
+            <h3 id="status-title">Access Pending</h3>
+            <p id="status-message">Your request is under review. You'll receive an email once approved.</p>
+            <div class="status-details" id="status-details"></div>
+          </div>
+          <button class="btn" id="btn-status-logout">Sign Out</button>
         </div>
       </section>
 
@@ -688,6 +782,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/db.js"></script>
+  <script src="js/cursor3d.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

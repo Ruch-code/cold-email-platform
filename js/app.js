@@ -34,6 +34,7 @@ const VIEW_HANDLERS = {
   salary: renderSalaryList,
   'auto-apply': renderAutoApplyHistory,
   login: checkAuthState,
+  remote: renderRemoteView,
 };
 
 function switchView(name) {
@@ -576,6 +577,238 @@ $('#aa-send-all').addEventListener('click', async () => {
   } catch (err) { msg.className = 'form-msg err'; msg.textContent = err.message; }
   finally { btn.disabled = false; btn.textContent = '🚀 Send Applications'; }
 });
+
+/* ---------- REMOTE JOBS ---------- */
+const REMOTE_SOURCES = [
+  { id: 'github', name: 'GitHub Jobs', url: 'https://jobs.github.com/positions.json', parser: 'github' },
+  { id: 'remoteok', name: 'RemoteOK', url: 'https://remoteok.io/api', parser: 'remoteok' },
+  { id: 'weworkremotely', name: 'We Work Remotely', url: 'https://weworkremotely.com/remote-jobs.rss', parser: 'wwr' },
+  { id: 'remotive', name: 'Remotive', url: 'https://remotive.io/api/remote-jobs', parser: 'remotive' },
+  { id: 'stackoverflow', name: 'Stack Overflow', url: 'https://stackoverflow.com/jobs/feed', parser: 'stackoverflow' },
+];
+
+async function renderRemoteView() {
+  await renderRemoteSources();
+  await populateSourceFilter();
+  $('#remote-search-form').addEventListener('submit', async (e) => { e.preventDefault(); await searchRemoteJobs(); });
+  $('#remote-save-alert').addEventListener('click', saveRemoteAlert);
+  $('#remote-add-source').addEventListener('click', addCustomRemoteSource);
+  loadCustomRemoteSources();
+}
+
+async function renderRemoteSources() {
+  const box = $('#remote-sources');
+  box.innerHTML = '';
+  const customSources = await DB.getAll('remote_sources');
+  const allSources = [...REMOTE_SOURCES, ...customSources];
+  
+  allSources.forEach(src => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-title">${esc(src.name)}</div>
+          <div class="card-sub">${src.id === 'custom' ? 'Custom' : 'Built-in'}</div>
+        </div>
+        ${src.id === 'custom' ? `<button class="btn small" data-del="${src.id}">🗑 Remove</button>` : ''}
+      </div>`;
+    if (src.id === 'custom') {
+      card.querySelector('[data-del]').addEventListener('click', async () => {
+        await DB.remove('remote_sources', src.id);
+        renderRemoteSources();
+        populateSourceFilter();
+      });
+    }
+    box.appendChild(card);
+  });
+}
+
+async function populateSourceFilter() {
+  const select = $('#remote-source-filter');
+  const customSources = (await DB.getAll('remote_sources')).filter(s => s.id === 'custom');
+  const options = ['<option value="all">All Sources</option>'];
+  [...REMOTE_SOURCES, ...customSources].forEach(s => {
+    options.push(`<option value="${s.id}">${esc(s.name)}</option>`);
+  });
+  select.innerHTML = options.join('');
+}
+
+async function loadCustomRemoteSources() {
+  // Load from DB and render in the sources list
+  await renderRemoteSources();
+}
+
+async function addCustomRemoteSource() {
+  const url = $('#remote-custom-url').value.trim();
+  const name = $('#remote-custom-name').value.trim() || 'Custom Source';
+  if (!url) return toast('Enter a URL', true);
+  
+  const id = 'custom_' + uid();
+  await DB.insert('remote_sources', { id, name, url, parser: 'custom', createdAt: new Date().toISOString() });
+  $('#remote-custom-url').value = '';
+  $('#remote-custom-name').value = '';
+  await renderRemoteSources();
+  populateSourceFilter();
+  toast('Custom source added');
+}
+
+async function searchRemoteJobs() {
+  const keywords = $('#remote-keywords').value.trim();
+  if (!keywords) return toast('Enter keywords to search', true);
+  
+  const btn = $('#remote-search-form .btn.primary');
+  btn.disabled = true; btn.textContent = 'Searching...';
+  $('#remote-hint').classList.add('hidden');
+  
+  const sourceFilter = $('#remote-source-filter').value;
+  const timeFilter = $('#remote-time').value;
+  const kwList = keywords.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+  
+  try {
+    const sourcesToSearch = sourceFilter === 'all' 
+      ? [...REMOTE_SOURCES, ...(await DB.getAll('remote_sources')).filter(s => s.id === 'custom')]
+      : [...REMOTE_SOURCES, ...(await DB.getAll('remote_sources')).filter(s => s.id === 'custom')].filter(s => s.id === sourceFilter);
+    
+    let allJobs = [];
+    
+    for (const src of sourcesToSearch) {
+      try {
+        const jobs = await fetchRemoteSource(src, kwList, timeFilter);
+        allJobs.push(...jobs);
+      } catch (err) {
+        console.warn(`Failed to fetch ${src.name}:`, err);
+      }
+    }
+    
+    // Deduplicate by URL/title
+    const seen = new Set();
+    const uniqueJobs = allJobs.filter(j => {
+      const key = (j.url || j.title + j.company).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    
+    // Sort by match score
+    uniqueJobs.forEach(job => {
+      job.matchScore = calculateRemoteMatch(job, kwList);
+    });
+    uniqueJobs.sort((a, b) => b.matchScore - a.matchScore);
+    
+    $('#remote-count').textContent = uniqueJobs.length;
+    renderRemoteResults(uniqueJobs);
+    
+    if (!uniqueJobs.length) {
+      $('#remote-results').innerHTML = '<p class="muted small">No remote jobs found matching your criteria.</p>';
+    }
+  } catch (err) {
+    toast('Search failed: ' + err.message, true);
+    // Fallback
+    const fallback = buildRemoteFallback(keywords);
+    $('#remote-count').textContent = fallback.length;
+    renderRemoteResults(fallback);
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 Search All Remote Jobs';
+  }
+}
+
+async function fetchRemoteSource(src, keywords, timeFilter) {
+  try {
+    const res = await fetch('/.netlify/functions/remote-fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: src.id, url: src.url, keywords, timeFilter, parser: src.parser })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Fetch failed');
+    return (data.jobs || []).map(j => ({
+      ...j,
+      source: src.name,
+      sourceId: src.id,
+      remote: true
+    }));
+  } catch (err) {
+    console.warn(`Remote fetch ${src.id} failed:`, err);
+    return [];
+  }
+}
+
+function calculateRemoteMatch(job, keywords) {
+  const haystack = (job.title + ' ' + job.description + ' ' + job.company + ' ' + (job.tags || []).join(' ')).toLowerCase();
+  return keywords.filter(k => haystack.includes(k.toLowerCase())).length;
+}
+
+function buildRemoteFallback(keywords) {
+  const kwList = keywords.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+  const remoteCompanies = [
+    { name: 'GitLab', url: 'https://about.gitlab.com/jobs/' },
+    { name: 'Automattic', url: 'https://automattic.com/work-with-us/' },
+    { name: 'Zapier', url: 'https://zapier.com/jobs' },
+    { name: 'Buffer', url: 'https://buffer.com/journey' },
+    { name: 'Doist', url: 'https://doist.com/jobs' },
+    { name: 'InVision', url: 'https://www.invisionapp.com/careers' },
+    { name: 'Elastic', url: 'https://www.elastic.co/about/careers' },
+    { name: 'HashiCorp', url: 'https://www.hashicorp.com/jobs' },
+  ];
+  
+  return remoteCompanies.map((c, i) => ({
+    id: uid(),
+    title: ['Senior Software Engineer', 'Full Stack Developer', 'Backend Engineer', 'DevOps Engineer', 'Frontend Engineer'][i % 5],
+    company: c.name,
+    location: '🌍 Remote',
+    source: c.name,
+    description: `We're hiring a remote engineer. Skills: ${kwList.join(', ') || 'modern web development'}.`,
+    url: c.url,
+    keywords: kwList,
+    posted: 'Recent',
+    remote: true,
+    matchScore: kwList.length
+  }));
+}
+
+function renderRemoteResults(jobs) {
+  const box = $('#remote-results');
+  box.innerHTML = '';
+  if (!jobs.length) { box.innerHTML = '<p class="muted small">No jobs found.</p>'; return; }
+  
+  jobs.forEach(job => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const level = job.matchScore >= 3 ? 'high' : job.matchScore >= 1 ? 'med' : 'low';
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-title">${esc(job.title)}</div>
+          <div class="card-sub">${esc(job.company)} · ${esc(job.location)} · ${esc(job.source)}</div>
+        </div>
+        <div class="card-match"><span class="match-pill match-${level}">${job.matchScore}/${job.keywords?.length || 0} keywords</span></div>
+      </div>
+      <div class="card-desc">${esc(clip(job.description, 180))}</div>
+      ${job.keywords?.length ? `<div class="card-meta">Keywords: ${job.keywords.map(k => `<span class="tag">${esc(k)}</span>`).join('')}</div>` : ''}
+      <div class="card-actions">
+        <button class="btn small" data-act="open" data-url="${esc(job.url)}">🔗 Open</button>
+        <button class="btn small" data-act="save" data-id="${job.id}">💾 Save</button>
+        <button class="btn small" data-act="apply" data-id="${job.id}">🚀 Auto-Apply</button>
+        <button class="btn small" data-act="email" data-id="${job.id}">✉️ Email</button>
+      </div>`;
+    card.querySelector('[data-act="save"]').addEventListener('click', async () => {
+      await DB.insert('jobs', { ...job, savedAt: new Date().toISOString() });
+      toast('Saved to database ✓');
+    });
+    card.querySelector('[data-act="open"]').addEventListener('click', () => { if (job.url) window.open(job.url, '_blank'); });
+    card.querySelector('[data-act="apply"]').addEventListener('click', () => { prepAutoApply(job); switchView('auto-apply'); });
+    card.querySelector('[data-act="email"]').addEventListener('click', () => { fillEmailFromJob(job); switchView('email'); });
+    box.appendChild(card);
+  });
+}
+
+function saveRemoteAlert() {
+  const kw = $('#remote-keywords').value.trim();
+  if (!kw) return toast('Enter keywords first', true);
+  DB.insert('alerts', { id: uid(), keywords: kw, location: 'Remote', role: $('#remote-role').value.trim(), source: 'remote', createdAt: new Date().toISOString() });
+  toast('Remote alert saved');
+}
 
 /* ---------- DATABASE VIEW ---------- */
 async function renderDatabase() {
