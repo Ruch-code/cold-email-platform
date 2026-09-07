@@ -652,19 +652,23 @@ textarea { resize: vertical; line-height: 1.5; }
   .cursor-ring { border-color: #fff; }
 }
 
-/* Admin Portal - Discrete Easter Egg */
+/* Admin Portal - Discrete Easter Egg (Header Area) */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
 .admin-portal {
   position: relative;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px dashed var(--border);
+  flex-shrink: 0;
 }
 
 .portal-globe {
   position: relative;
-  width: 56px;
-  height: 56px;
-  margin: 0 auto;
+  width: 40px;
+  height: 40px;
   cursor: pointer;
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   border-radius: 50%;
@@ -694,7 +698,7 @@ textarea { resize: vertical; line-height: 1.5; }
 
 .portal-ring {
   position: absolute;
-  inset: -4px;
+  inset: -3px;
   border: 1px solid var(--accent);
   border-radius: 50%;
   opacity: 0.4;
@@ -702,7 +706,7 @@ textarea { resize: vertical; line-height: 1.5; }
 }
 
 .portal-ring-2 {
-  inset: -10px;
+  inset: -7px;
   border-color: var(--accent-2);
   opacity: 0.2;
   animation-delay: 1.5s;
@@ -716,9 +720,9 @@ textarea { resize: vertical; line-height: 1.5; }
 
 .portal-tooltip {
   position: absolute;
-  bottom: 100%;
+  top: 100%;
   left: 50%;
-  transform: translateX(-50%) translateY(10px);
+  transform: translateX(-50%) translateY(8px);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -737,9 +741,9 @@ textarea { resize: vertical; line-height: 1.5; }
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 16px 20px;
-  max-width: 280px;
-  min-width: 240px;
+  padding: 12px 16px;
+  max-width: 260px;
+  min-width: 220px;
   text-align: left;
   box-shadow: var(--shadow);
   position: relative;
@@ -748,17 +752,17 @@ textarea { resize: vertical; line-height: 1.5; }
 .tooltip-story::after {
   content: '';
   position: absolute;
-  bottom: -6px;
+  top: -6px;
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: var(--panel);
+  border-bottom-color: var(--panel);
   filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
 }
 
 .tooltip-story p {
-  margin: 0 0 10px;
-  font-size: 12px;
+  margin: 0 0 8px;
+  font-size: 11px;
   line-height: 1.5;
   color: var(--text);
 }
@@ -768,10 +772,10 @@ textarea { resize: vertical; line-height: 1.5; }
 }
 
 .tooltip-action {
-  margin-top: 12px;
-  padding-top: 10px;
+  margin-top: 10px;
+  padding-top: 8px;
   border-top: 1px dashed var(--border);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--accent);
   text-align: center;
@@ -785,7 +789,7 @@ textarea { resize: vertical; line-height: 1.5; }
 
 .portal-globe:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 4px;
+  outline-offset: 3px;
 }
 
 /* Admin portal tabindex for keyboard access */
@@ -795,7 +799,7 @@ textarea { resize: vertical; line-height: 1.5; }
 
 .admin-portal .portal-globe[tabindex]:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 4px;
+  outline-offset: 3px;
 }
 
 /* Hide Netlify badge */

@@ -1,4 +1,5 @@
 const { json, error } = require('./lib/shared');
+const { callAIWithFallback, buildProviderChain } = require('./lib/ai-providers');
 
 /**
  * Cover Letter Generator
@@ -16,14 +17,20 @@ exports.handler = async (event) => {
   const { resume, jd, company, role, sender_name, headline, tone = 'professional' } = body;
   if (!resume || !jd || !company || !role) return error('resume, jd, company, role required');
 
-  const apiKey = process.env.OPENAI_API_KEY || body.openaiKey;
-  if (!apiKey) {
-    return json({ cover_letter: localCoverLetter({ resume, jd, company, role, sender_name, headline, tone }), mode: 'local' });
+  const providerChain = buildProviderChain(process.env);
+  if (providerChain.length === 0) {
+    return json({ cover_letter: localCoverLetter({ resume, jd, company, role, sender_name, headline, tone }), mode: 'template' });
   }
 
-  try {
-    const sys = `Write a compelling, ATS-friendly cover letter. 
-Tone: ${tone} (professional/warm/confident/enthusiastic).
+  const tones = {
+    professional: 'formal and polished',
+    warm: 'friendly and personable',
+    confident: 'assertive and direct',
+    enthusiastic: 'energetic and excited',
+  };
+
+  const sys = `Write a compelling, ATS-friendly cover letter.
+Tone: ${tones[tone] || tones.professional}.
 Structure:
 1. Header with sender info
 2. Salutation
@@ -36,27 +43,23 @@ Structure:
 Keep it to 250-350 words. No markdown. Plain text.
 Use keywords from JD naturally.`;
 
-    const user = `JOB DESCRIPTION:\n${jd}\n\nRESUME:\n${resume}\n\nCOMPANY: ${company}\nROLE: ${role}\nSENDER: ${sender_name}\nHEADLINE: ${headline || ''}`;
+  const user = `JOB DESCRIPTION:\n${jd}\n\nRESUME:\n${resume}\n\nCOMPANY: ${company}\nROLE: ${role}\nSENDER: ${sender_name}\nHEADLINE: ${headline || ''}`;
 
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      signal: AbortSignal.timeout(45000),
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        temperature: 0.5,
+  try {
+    const { content, provider, model } = await callAIWithFallback(
+      providerChain,
+      {
         messages: [
           { role: 'system', content: sys },
           { role: 'user', content: user },
         ],
-      }),
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error?.message || 'OpenAI error');
-
-    return json({ cover_letter: data.choices?.[0]?.message?.content || localCoverLetter(body), mode: 'ai' });
+        temperature: 0.5,
+        maxTokens: 600,
+      }
+    );
+    return json({ cover_letter: content, mode: 'ai', provider, model });
   } catch (e) {
-    return json({ cover_letter: localCoverLetter(body), mode: 'local', note: e.message });
+    return json({ cover_letter: localCoverLetter({ resume, jd, company, role, sender_name, headline, tone }), mode: 'template', note: e.message });
   }
 };
 

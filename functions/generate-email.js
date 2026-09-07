@@ -1,4 +1,5 @@
 const { json, error } = require('./lib/shared');
+const { callAIWithFallback, buildProviderChain } = require('./lib/ai-providers');
 
 /**
  * Generate Cold Email
@@ -16,30 +17,28 @@ exports.handler = async (event) => {
   const { toName, company, role, headline, fit, senderName } = body;
   if (!company || !role) return error('company and role are required');
 
-  const apiKey = process.env.OPENAI_API_KEY || body.openaiKey;
-  if (!apiKey) {
+  const providerChain = buildProviderChain(process.env);
+  if (providerChain.length === 0) {
     return json({ body: templateEmail({ toName, company, role, headline, fit, senderName }), mode: 'template' });
   }
 
+  const sys = `Write a short, warm, professional cold email to a recruiter at ${company} about the ${role} role. 
+Greet ${toName || 'the recruiter'} by name if given. Mention ${headline || 'the candidate'} and, if provided, this relevance: "${fit}". 
+Keep it to ~120-150 words, include a subject line on the first line prefixed "Subject: ", and end with a call to invite a quick call. 
+Sign it ${senderName || 'the candidate'}. No markdown formatting beyond plain text.`;
+
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      signal: AbortSignal.timeout(45000),
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
+    const { content, provider, model } = await callAIWithFallback(
+      providerChain,
+      {
+        messages: [{ role: 'user', content: sys }],
         temperature: 0.6,
-        messages: [{
-          role: 'user',
-          content: `Write a short, warm, professional cold email to a recruiter at ${company} about the ${role} role. Greet ${toName || 'the recruiter'} by name if given. Mention ${headline || 'the candidate'} and, if provided, this relevance: "${fit}". Keep it to ~120-150 words, include a subject line on the first line prefixed "Subject: ", and end with a call to invite a quick call. Sign it ${senderName || 'the candidate'}. No markdown formatting beyond plain text.`,
-        }],
-      }),
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error?.message || 'OpenAI error');
-    return json({ body: data.choices?.[0]?.message?.content || templateEmail(body), mode: 'ai' });
+        maxTokens: 500,
+      }
+    );
+    return json({ body: content, mode: 'ai', provider, model });
   } catch (e) {
-    return json({ body: templateEmail(body), mode: 'template', note: e.message });
+    return json({ body: templateEmail({ toName, company, role, headline, fit, senderName }), mode: 'template', note: e.message });
   }
 };
 

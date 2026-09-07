@@ -1,12 +1,13 @@
 const { json, error } = require('./lib/shared');
+const { callAIWithFallback, buildProviderChain } = require('./lib/ai-providers');
 
 /**
  * Tailor Resume
  * POST /api/tailor-resume
  * body: { resume, jd, keywords[], keepKeywords }
  *
- * Uses OpenAI to rewrite the resume against the job description,
- * while strictly keeping the matched keywords and true facts.
+ * Uses multi-provider AI (Experiential Labs models + OpenAI fallback)
+ * to rewrite the resume against the job description.
  */
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return json({});
@@ -23,48 +24,51 @@ exports.handler = async (event) => {
   const keywords = Array.isArray(body.keywords) ? body.keywords : [];
   const keepKeywords = body.keepKeywords !== false;
 
-  const apiKey = process.env.OPENAI_API_KEY || body.openaiKey;
-  if (!apiKey) {
-    // No key: do a deterministic local transformation (keyword emphasis)
+  // Build provider chain from env vars (Experiential Labs + OpenAI fallback)
+  const providerChain = buildProviderChain(process.env);
+  
+  if (providerChain.length === 0) {
     return json({ resume: localTailor(resume, keywords), mode: 'local' });
   }
 
-  try {
-    const sys = `You are an expert resume writer. Rewrite the candidate's resume so it matches the given job description. STRICT RULES:
+  const sys = `You are an expert resume writer. Rewrite the candidate's resume so it matches the given job description. STRICT RULES:
 1. NEVER invent facts, skills, dates, or companies that are not in the original resume.
 2. Emphasize relevant experience first, de-emphasize (but keep) unrelated items.
 3. Keep ALL of these keywords present in the resume exactly: ${keywords.join(', ') || '(none specified)'}.
 4. Use strong action verbs and quantify where the original supports it.
 5. Stay under ~420 words. Output resume plain text with clear section headings (Summary, Experience, Skills, Education).`;
 
-    const user = `JOB DESCRIPTION:\n${jd}\n\nCANDIDATE RESUME:\n${resume}`;
+  const user = `JOB DESCRIPTION:\n${jd}\n\nCANDIDATE RESUME:\n${resume}`;
 
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      signal: AbortSignal.timeout(60000),
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        temperature: 0.4,
+  try {
+    const { content: tailored, provider, model } = await callAIWithFallback(
+      providerChain,
+      {
         messages: [
           { role: 'system', content: sys },
           { role: 'user', content: user },
         ],
-      }),
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error?.message || 'OpenAI error');
-    let tailored = data.choices?.[0]?.message?.content || '';
+        temperature: 0.4,
+        maxTokens: 2000,
+      }
+    );
 
     // Guarantee keyword presence if requested
+    let tailoredResume = tailored;
     if (keepKeywords && keywords.length) {
       for (const k of keywords) {
-        if (!tailored.toLowerCase().includes(k.toLowerCase())) {
-          tailored = tailored + '\n- ' + k;
+        if (!tailoredResume.toLowerCase().includes(k.toLowerCase())) {
+          tailoredResume = tailoredResume + '\n- ' + k;
         }
       }
     }
-    return json({ resume: tailored, mode: 'ai', keywordsRetained: keywords.filter((k) => tailored.toLowerCase().includes(k.toLowerCase())) });
+    return json({ 
+      resume: tailoredResume, 
+      mode: 'ai', 
+      provider,
+      model,
+      keywordsRetained: keywords.filter((k) => tailoredResume.toLowerCase().includes(k.toLowerCase())) 
+    });
   } catch (e) {
     return json({ resume: localTailor(resume, keywords), mode: 'local', note: e.message });
   }
@@ -76,5 +80,5 @@ function localTailor(resume, keywords) {
     const re = new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
     out = out.replace(re, (m) => '**' + m + '**');
   });
-  return 'KEYWORD-ENRICHED RESUME (no OpenAI key set — keywords bolded/kept):\n\n' + out;
+  return 'KEYWORD-ENRICHED RESUME (no AI key set — keywords bolded/kept):\n\n' + out;
 }
