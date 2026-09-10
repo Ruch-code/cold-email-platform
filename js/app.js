@@ -35,7 +35,7 @@ $$('[data-goto]').forEach((b) => b.addEventListener('click', () => {
   switchView(b.dataset.goto);
 }));
 
-const PROTECTED_VIEWS = ['remote', 'scanner', 'scraper', 'resume', 'ats', 'cover-letter', 'salary', 'auto-apply', 'email', 'database'];
+const PROTECTED_VIEWS = ['dashboard', 'remote', 'scanner', 'scraper', 'resume', 'ats', 'cover-letter', 'salary', 'auto-apply', 'email', 'database'];
 
 function canAccessView(view) {
   if (!PROTECTED_VIEWS.includes(view)) return true;
@@ -70,6 +70,7 @@ const VIEW_HANDLERS = {
   'auto-apply': renderAutoApplyHistory,
   login: checkAuthState,
   remote: renderRemoteView,
+  landing: renderLandingView,
 };
 
 function switchView(name) {
@@ -936,6 +937,46 @@ $('#db-export').addEventListener('click', () => download('database.json', DB.exp
 $('#export-data').addEventListener('click', () => download('database.json', DB.exportAll()));
 function download(name, content) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type: 'application/json' })); a.download = name; a.click(); URL.revokeObjectURL(a.href); toast('Exported ' + name); }
 
+/* ---------- LANDING VIEW ---------- */
+async function renderLandingView() {
+  if (window.Landing3D && !window.Landing3D.initialized) {
+    window.Landing3D.init();
+  }
+  
+  const counters = document.querySelectorAll('.trust-number[data-count]');
+  counters.forEach(counter => {
+    if (!counter.classList.contains('animated')) {
+      counter.classList.add('animated');
+      animateCounter(counter);
+    }
+  });
+}
+
+function animateCounter(el) {
+  const target = parseInt(el.dataset.count, 10);
+  const duration = 2000;
+  const startTime = performance.now();
+  
+  function update(time) {
+    const progress = Math.min((time - startTime) / duration, 1);
+    const eased = easeOutCubic(progress);
+    const current = Math.floor(target * eased);
+    el.textContent = current.toLocaleString();
+    
+    if (progress < 1) {
+      requestAnimationFrame(update);
+    } else {
+      el.textContent = target.toLocaleString();
+    }
+  }
+  
+  requestAnimationFrame(update);
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
 /* ---------- UTIL ---------- */
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({ '&': '&', '<': '<', '>': '>', '"': '"' }[c])); }
 function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
@@ -1030,7 +1071,16 @@ function stopStoryCycle() {
   if (s.senderName) { $('#email-name').value = s.senderName; $('#cl-name').value = s.senderName; $('#aa-name').value = s.senderName; }
   if (s.senderEmail) { $('#email-from').value = s.senderEmail; $('#aa-email').value = s.senderEmail; }
   if (s.headline) { $('#email-headline').value = s.headline; $('#cl-headline').value = s.headline; $('#aa-headline').value = s.headline; }
+  
   await checkAuthState();
-  await renderDashboard();
-  await renderEmailLog();
+  
+  // Show landing page for non-logged-in users, dashboard for logged-in
+  const user = await getCurrentUser();
+  if (user) {
+    await renderDashboard();
+    await renderEmailLog();
+  } else {
+    switchView('landing');
+    if (window.Landing3D) window.Landing3D.init();
+  }
 })();

@@ -44,7 +44,10 @@
         </div>
       </div>
       <nav class="nav">
-        <button class="nav-item active" data-view="dashboard">
+        <button class="nav-item active" data-view="landing">
+          <span class="nav-icon">🏠</span> Landing
+        </button>
+        <button class="nav-item" data-view="dashboard">
           <span class="nav-icon">📊</span> Dashboard
         </button>
         <button class="nav-item" data-view="remote">
@@ -91,6 +94,254 @@
     </aside>
 
     <main class="main">
+      <!-- LANDING PAGE -->
+      <section id="view-landing" class="view active">
+        <div class="landing-page">
+          <!-- 3D Canvas Background -->
+          <canvas id="landing-canvas" class="landing-canvas"></canvas>
+          
+          <!-- Floating Particles Container -->
+          <div id="floating-particles" class="floating-particles" aria-hidden="true"></div>
+          
+          <!-- Hero Section -->
+          <header class="landing-hero" data-parallax="0.15">
+            <div class="hero-content">
+              <div class="hero-badge">
+                <span class="badge-pulse"></span>
+                <span>Powered by GPT-6 Astra • DeepSeek V4 • Qwen3.8</span>
+              </div>
+              <h1 class="landing-title">
+                <span class="title-line">HiredHunter</span>
+                <span class="title-line accent">Cold Email Platform</span>
+              </h1>
+              <p class="landing-subtitle">AI-powered job hunt arsenal. Scan, scrape, tailor, apply — all in one.</p>
+              <div class="hero-cta">
+                <button class="btn btn-xl primary" data-goto="remote">🚀 Start Free</button>
+                <button class="btn btn-xl ghost" data-goto="login">🔐 Sign In</button>
+              </div>
+              <div class="hero-trust">
+                <div class="trust-item">
+                  <span class="trust-number" data-count="12">0</span>
+                  <span class="trust-label">Job Sources</span>
+                </div>
+                <div class="trust-item">
+                  <span class="trust-number" data-count="847">0</span>
+                  <span class="trust-label">Live Listings</span>
+                </div>
+                <div class="trust-item">
+                  <span class="trust-number" data-count="23">0</span>
+                  <span class="trust-label">AI Models</span>
+                </div>
+                <div class="trust-item">
+                  <span class="trust-number" data-count="100">0</span>
+                  <span class="trust-label">Free</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Scroll Indicator -->
+            <div class="scroll-indicator" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M19 12l-7 7-7-7"/>
+              </svg>
+            </div>
+          </header>
+
+          <!-- Features Section -->
+          <section class="landing-features" data-parallax="0.08">
+            <div class="section-header">
+              <h2>Everything You Need to Get Hired</h2>
+              <p>From discovery to offer — one platform, zero tabs.</p>
+            </div>
+            <div class="features-grid">
+              <article class="feature-card" data-tilt data-goto="remote">
+                <div class="feature-icon">🌍</div>
+                <h3>Remote Jobs Aggregator</h3>
+                <p>12+ sources: RemoteOK, We Work Remotely, Remotive, Wellfound, Himalayas + custom sources</p>
+                <span class="feature-tag">Live Feed</span>
+              </article>
+              <article class="feature-card" data-tilt data-goto="scanner">
+                <div class="feature-icon">🔍</div>
+                <h3>Smart Job Scanner</h3>
+                <p>Keyword + location + role filtering across Greenhouse, Lever, LinkedIn, Indeed</p>
+                <span class="feature-tag">Smart Filter</span>
+              </article>
+              <article class="feature-card" data-tilt data-goto="scraper">
+                <div class="feature-icon">🕷️</div>
+                <h3>Web Scraper</h3>
+                <p>Paste any careers URL → structured JSON: title, company, salary, requirements, remote flag</p>
+                <span class="feature-tag">Auto-Parse</span>
+              </article>
+              <article class="feature-card" data-tilt data-goto="resume">
+                <div class="feature-icon">📄</div>
+                <h3>Resume Booster</h3>
+                <p>Upload once → AI tailors per JD keeping your keywords. ATS-optimized output.</p>
+                <span class="feature-tag">ATS Ready</span>
+              </article>
+              <article class="feature-card" data-tilt data-goto="ats">
+                <div class="feature-icon">🎯</div>
+                <h3>ATS Optimizer</h3>
+                <p>Analyze keyword density, sections, verbs, metrics. Get scored resume + recommendations</p>
+                <span class="feature-tag">Score 95+</span>
+              </article>
+              <article class="feature-card" data-tilt data-goto="cover-letter">
+                <div class="feature-icon">📝</div>
+                <h3>Cover Letter Generator</h3>
+                <p>AI writes tailored letters: professional, warm, confident, enthusiastic tones</p>
+                <span class="feature-tag">4 Tones</span>
+              </article>
+              <article class="feature-card" data-tilt data-goto="salary">
+                <div class="feature-icon">💰</div>
+                <h3>Salary Estimator</h3>
+                <p>Realistic ranges by role, location, experience, industry, skills + equity/benefits</p>
+                <span class="feature-tag">Data-Driven</span>
+              </article>
+              <article class="feature-card" data-tilt data-goto="auto-apply">
+                <div class="feature-icon">🚀</div>
+                <h3>Auto-Apply Engine</h3>
+                <p>Find contacts → personalized emails + cover letter + resume → bulk send with tracking</p>
+                <span class="feature-tag">Bulk Send</span>
+              </article>
+              <article class="feature-card" data-tilt data-goto="email">
+                <div class="feature-icon">✉️</div>
+                <h3>Cold Email Engine</h3>
+                <p>AI crafts personalized cold emails. Send via Resend with delivery tracking</p>
+                <span class="feature-tag">Tracked</span>
+              </article>
+            </div>
+          </section>
+
+          <!-- AI Models Section -->
+          <section class="landing-ai" data-parallax="0.05">
+            <div class="section-header">
+              <h2>Powered by the Best AI Models</h2>
+              <p>Multi-provider intelligence with automatic fallback</p>
+            </div>
+            <div class="ai-models-grid">
+              <article class="ai-model-card primary">
+                <div class="model-badge">Primary</div>
+                <div class="model-icon">🧠</div>
+                <h3>GPT-6 Astra</h3>
+                <p>Experiential Labs flagship. Best reasoning, creativity, instruction following.</p>
+                <span class="model-provider">Experiential Labs</span>
+              </article>
+              <article class="ai-model-card">
+                <div class="model-icon">🌙</div>
+                <h3>GPT-5.6 LUNA</h3>
+                <p>Specialized for creative writing, cover letters, personalized outreach.</p>
+                <span class="model-provider">Experiential Labs</span>
+              </article>
+              <article class="ai-model-card">
+                <div class="model-icon">⚡</div>
+                <h3>DeepSeek V4 Flash</h3>
+                <p>Lightning-fast inference. Perfect for real-time resume tailoring.</p>
+                <span class="model-provider">Experiential Labs</span>
+              </article>
+              <article class="ai-model-card">
+                <div class="model-icon">🐉</div>
+                <h3>Qwen3.8 27B</h3>
+                <p>Multilingual powerhouse. Technical writing, code, structured output.</p>
+                <span class="model-provider">Experiential Labs</span>
+              </article>
+              <article class="ai-model-card fallback">
+                <div class="model-badge fallback-badge">Fallback</div>
+                <div class="model-icon">🔮</div>
+                <h3>GPT-4o-mini</h3>
+                <p>OpenAI reliable fallback. Fast, cheap, consistent quality.</p>
+                <span class="model-provider">OpenAI</span>
+              </article>
+              <article class="ai-model-card fallback">
+                <div class="model-badge fallback-badge">Fallback</div>
+                <div class="model-icon">⚙️</div>
+                <h3>GPT-3.5 Turbo</h3>
+                <p>Ultra-fast fallback. Good enough for simple tasks, instant response.</p>
+                <span class="model-provider">OpenAI</span>
+              </article>
+            </div>
+            <div class="ai-fallback-note">
+              <span class="fallback-icon">🔄</span>
+              <span>Automatic failover chain: GPT-6 → LUNA → DeepSeek → Qwen → GPT-4o → 3.5 Turbo</span>
+            </div>
+          </section>
+
+          <!-- Workflow Section -->
+          <section class="landing-workflow" data-parallax="0.08">
+            <div class="section-header">
+              <h2>Your Job Hunt in 4 Steps</h2>
+            </div>
+            <div class="workflow-steps">
+              <article class="workflow-step">
+                <div class="step-number">1</div>
+                <h3>Discover</h3>
+                <p>Scan remote boards or scrape any careers page. Save matches instantly.</p>
+                <span class="step-icon">🔍</span>
+              </article>
+              <article class="workflow-step">
+                <div class="step-number">2</div>
+                <h3>Optimize</h3>
+                <p>Upload resume → AI tailors per JD. ATS score 95+. Cover letter in seconds.</p>
+                <span class="step-icon">🎯</span>
+              </article>
+              <article class="workflow-step">
+                <div class="step-number">3</div>
+                <h3>Apply</h3>
+                <p>Auto-find contacts. Personalized emails + cover letter + resume → bulk send.</p>
+                <span class="step-icon">🚀</span>
+              </article>
+              <article class="workflow-step">
+                <div class="step-number">4</div>
+                <h3>Track</h3>
+                <p>Delivery receipts, open rates, replies. Database of every application.</p>
+                <span class="step-icon">📊</span>
+              </article>
+            </div>
+          </section>
+
+          <!-- CTA Section -->
+          <section class="landing-cta" data-parallax="0.1">
+            <div class="cta-content">
+              <h2>Ready to Get Hired Faster?</h2>
+              <p>Join 1,000+ candidates using HiredHunter. Free forever. No credit card.</p>
+              <div class="cta-buttons">
+                <button class="btn btn-xl primary" data-goto="remote">Start Free Now</button>
+                <button class="btn btn-xl ghost" data-goto="login">Sign In</button>
+              </div>
+              <p class="cta-note">No credit card • Cancel anytime • Data exports anytime</p>
+            </div>
+          </section>
+
+          <!-- Footer -->
+          <footer class="landing-footer">
+            <div class="footer-grid">
+              <div class="footer-brand">
+                <strong>HiredHunter</strong>
+                <p>Cold email platform for job seekers.</p>
+              </div>
+              <nav class="footer-nav">
+                <a href="#" data-goto="remote">Remote Jobs</a>
+                <a href="#" data-goto="scanner">Scanner</a>
+                <a href="#" data-goto="scraper">Scraper</a>
+                <a href="#" data-goto="resume">Resume</a>
+              </nav>
+              <nav class="footer-nav">
+                <a href="#" data-goto="ats">ATS Optimizer</a>
+                <a href="#" data-goto="cover-letter">Cover Letter</a>
+                <a href="#" data-goto="salary">Salary</a>
+                <a href="#" data-goto="auto-apply">Auto-Apply</a>
+              </nav>
+              <nav class="footer-nav">
+                <a href="#" data-goto="email">Cold Email</a>
+                <a href="#" data-goto="database">Database</a>
+                <a href="#" data-goto="login">Account</a>
+              </nav>
+            </div>
+            <div class="footer-bottom">
+              <p>Built with 🧠 GPT-6 Astra • ⚡ DeepSeek V4 • 🐉 Qwen3.8 • Free forever</p>
+            </div>
+          </footer>
+        </div>
+      </section>
+
       <!-- DASHBOARD -->
       <section id="view-dashboard" class="view active">
         <header class="page-head" data-parallax="0.08">
@@ -837,6 +1088,7 @@
 
   <script src="js/db.js"></script>
   <script src="js/cursor3d.js"></script>
+  <script src="js/landing3d.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
