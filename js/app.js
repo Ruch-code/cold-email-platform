@@ -157,6 +157,10 @@ function showLoggedIn(user) {
     $('#user-email').textContent = userData.email;
     $('#user-status').textContent = 'Approved';
     $('#user-status').className = 'status-badge approved';
+    
+    // Show custom sources panel for logged-in users
+    $('#custom-sources-panel').classList.remove('hidden');
+    renderRemoteSources();
   });
 }
 
@@ -202,6 +206,7 @@ function showLoggedOut() {
   localStorage.removeItem('hh_user');
   $('#logged-in-view').classList.add('hidden');
   $('#access-status-view').classList.add('hidden');
+  $('#custom-sources-panel').classList.add('hidden');
   $$('.auth-form').forEach(f => f.classList.remove('hidden'));
   $$('.auth-tab').forEach(t => t.classList.remove('hidden'));
   $('#login-form').classList.remove('hidden');
@@ -270,6 +275,40 @@ $('#signup-form').addEventListener('submit', async (e) => {
 });
 
 $('#btn-logout').addEventListener('click', async () => {
+  try {
+    await fetch('${API_BASE}/auth-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    showLoggedOut();
+    DB.clear();
+    renderDashboard();
+    toast('Signed out');
+  } catch (err) {
+    toast('Logout failed: ' + err.message, true);
+  }
+$('#btn-logout').addEventListener('click', async () => {
+  try {
+    await fetch('${API_BASE}/auth-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    showLoggedOut();
+    DB.clear();
+    renderDashboard();
+    toast('Signed out');
+  } catch (err) {
+    toast('Logout failed: ' + err.message, true);
+  }
+});
+
+$('#btn-admin-logout').addEventListener('click', async () => {
+  try {
+    await fetch('${API_BASE}/auth-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    showLoggedOut();
+    DB.clear();
+    renderDashboard();
+    toast('Admin signed out');
+  } catch (err) {
+    toast('Logout failed: ' + err.message, true);
+  }
+});
+
+$('#btn-status-logout').addEventListener('click', async () => {
   try {
     await fetch('${API_BASE}/auth-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
     showLoggedOut();
@@ -684,12 +723,36 @@ const REMOTE_SOURCES = [
   // Free Startup & Tech Platforms
   { id: 'wellfound', name: 'Wellfound (AngelList)', url: 'https://wellfound.com/jobs', parser: 'wellfound' },
   { id: 'dynamitejobs', name: 'Dynamite Jobs', url: 'https://dynamitejobs.com/jobs/rss', parser: 'dynamitejobs' },
+  { id: 'ycombinator', name: 'Y Combinator Jobs', url: 'https://www.ycombinator.com/jobs/rss', parser: 'ycombinator' },
+  { id: 'angelist', name: 'AngelList Jobs', url: 'https://angel.co/jobs', parser: 'angelist' },
 
-  // Existing
+  // Developer-Focused Remote Boards
+  { id: 'remotehunt', name: 'Remote Hunt', url: 'https://remotehunt.com/feed', parser: 'remotehunt' },
+  { id: 'remotiveio', name: 'Remotive.io', url: 'https://remotive.io/remote-jobs.rss', parser: 'remotive' },
+  { id: 'jobspresso', name: 'Jobspresso', url: 'https://jobspresso.co/feed', parser: 'jobspresso' },
+  { id: 'remoteleaf', name: 'RemoteLeaf', url: 'https://remoteleaf.com/jobs.rss', parser: 'remoteleaf' },
+  { id: 'remotewant', name: 'RemoteWant', url: 'https://remotewant.com/feed', parser: 'remotewant' },
+  { id: 'skipdrive', name: 'SkipDrive', url: 'https://skipdrive.com/jobs.rss', parser: 'skipdrive' },
+  { id: 'landingjobs', name: 'Landing.jobs', url: 'https://landing.jobs/feed', parser: 'landingjobs' },
+  { id: 'authenticjobs', name: 'Authentic Jobs', url: 'https://authenticjobs.com/feed', parser: 'authenticjobs' },
+  { id: 'gunio', name: 'Gun.io', url: 'https://gun.io/feed', parser: 'gunio' },
+  { id: 'arc', name: 'Arc.dev', url: 'https://arc.dev/jobs.rss', parser: 'arc' },
+
+  // Niche & Specialized
+  { id: 'remotepython', name: 'RemotePython', url: 'https://remotepython.com/jobs/rss', parser: 'remotepython' },
+  { id: 'remotejava', name: 'RemoteJava', url: 'https://remotejava.com/feed', parser: 'remotejava' },
+  { id: 'reactjobs', name: 'React Job Board', url: 'https://reactjobboard.com/feed', parser: 'reactjobs' },
+  { id: 'vuejobs', name: 'Vue Jobs', url: 'https://vuejobs.com/feed', parser: 'vuejobs' },
+  { id: 'golangjobs', name: 'Golang Jobs', url: 'https://golangjobs.com/feed', parser: 'golangjobs' },
+  { id: 'rustjobs', name: 'Rust Jobs', url: 'https://rustjobs.com/feed', parser: 'rustjobs' },
+
+  // Crypto & Web3
+  { id: 'cryptojobs', name: 'CryptoJobs', url: 'https://cryptojobs.com/feed', parser: 'cryptojobs' },
+  { id: 'web3career', name: 'Web3 Career', url: 'https://web3.career/feed', parser: 'web3career' },
+  { id: 'blockchainjobs', name: 'Blockchain Jobs', url: 'https://blockchainjobs.com/feed', parser: 'blockchainjobs' },
+
+  // Existing (deduplicated)
   { id: 'github', name: 'GitHub Jobs', url: 'https://jobs.github.com/positions.json', parser: 'github' },
-  { id: 'remoteok', name: 'RemoteOK', url: 'https://remoteok.io/api', parser: 'remoteok' },
-  { id: 'weworkremotely', name: 'We Work Remotely', url: 'https://weworkremotely.com/remote-jobs.rss', parser: 'wwr' },
-  { id: 'remotive', name: 'Remotive', url: 'https://remotive.io/api/remote-jobs', parser: 'remotive' },
   { id: 'stackoverflow', name: 'Stack Overflow', url: 'https://stackoverflow.com/jobs/feed', parser: 'stackoverflow' },
 ];
 
@@ -1083,4 +1146,4 @@ function stopStoryCycle() {
     switchView('landing');
     if (window.Landing3D) window.Landing3D.init();
   }
-})();
+})();})();

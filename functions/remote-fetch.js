@@ -50,6 +50,69 @@ exports.handler = async (event) => {
       case 'workingnomads':
         jobs = await fetchWorkingNomads(url, keywords);
         break;
+      case 'ycombinator':
+        jobs = await fetchYCombinator(url, keywords);
+        break;
+      case 'angelist':
+        jobs = await fetchAngelList(url, keywords);
+        break;
+      case 'remotehunt':
+        jobs = await fetchRemoteHunt(url, keywords);
+        break;
+      case 'remotiveio':
+        jobs = await fetchRemotiveIO(url, keywords);
+        break;
+      case 'jobspresso':
+        jobs = await fetchJobspresso(url, keywords);
+        break;
+      case 'remoteleaf':
+        jobs = await fetchRemoteLeaf(url, keywords);
+        break;
+      case 'remotewant':
+        jobs = await fetchRemoteWant(url, keywords);
+        break;
+      case 'skipdrive':
+        jobs = await fetchSkipDrive(url, keywords);
+        break;
+      case 'landingjobs':
+        jobs = await fetchLandingJobs(url, keywords);
+        break;
+      case 'authenticjobs':
+        jobs = await fetchAuthenticJobs(url, keywords);
+        break;
+      case 'gunio':
+        jobs = await fetchGunIO(url, keywords);
+        break;
+      case 'arc':
+        jobs = await fetchArc(url, keywords);
+        break;
+      case 'remotepython':
+        jobs = await fetchRemotePython(url, keywords);
+        break;
+      case 'remotejava':
+        jobs = await fetchRemoteJava(url, keywords);
+        break;
+      case 'reactjobs':
+        jobs = await fetchReactJobs(url, keywords);
+        break;
+      case 'vuejobs':
+        jobs = await fetchVueJobs(url, keywords);
+        break;
+      case 'golangjobs':
+        jobs = await fetchGolangJobs(url, keywords);
+        break;
+      case 'rustjobs':
+        jobs = await fetchRustJobs(url, keywords);
+        break;
+      case 'cryptojobs':
+        jobs = await fetchCryptoJobs(url, keywords);
+        break;
+      case 'web3career':
+        jobs = await fetchWeb3Career(url, keywords);
+        break;
+      case 'blockchainjobs':
+        jobs = await fetchBlockchainJobs(url, keywords);
+        break;
       case 'custom':
         jobs = await fetchCustomSource(url, keywords);
         break;
@@ -392,6 +455,258 @@ async function fetchWorkingNomads(url, keywords) {
   // Working Nomads - RSS feed
   try {
     const res = await fetch(url || 'https://workingnomads.com/jobs/rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchYCombinator(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://www.ycombinator.com/jobs/rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchAngelList(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://angel.co/jobs', {
+      signal: AbortSignal.timeout(20000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' }
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    return extractGenericJobs(html, 'https://angel.co');
+  } catch { return []; }
+}
+
+async function fetchRemoteHunt(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://remotehunt.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchRemotiveIO(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://remotive.io/remote-jobs.rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchJobspresso(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://jobspresso.co/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchRemoteLeaf(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://remoteleaf.com/jobs.rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchRemoteWant(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://remotewant.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchSkipDrive(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://skipdrive.com/jobs.rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchLandingJobs(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://landing.jobs/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchAuthenticJobs(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://authenticjobs.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchGunIO(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://gun.io/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchArc(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://arc.dev/jobs.rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchRemotePython(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://remotepython.com/jobs/rss', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchRemoteJava(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://remotejava.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchReactJobs(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://reactjobboard.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchVueJobs(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://vuejobs.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchGolangJobs(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://golangjobs.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchRustJobs(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://rustjobs.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchCryptoJobs(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://cryptojobs.com/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchWeb3Career(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://web3.career/feed', {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'HiredHunter/1.0' }
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return parseWWRRSS(text);
+  } catch { return []; }
+}
+
+async function fetchBlockchainJobs(url, keywords) {
+  try {
+    const res = await fetch(url || 'https://blockchainjobs.com/feed', {
       signal: AbortSignal.timeout(15000),
       headers: { 'User-Agent': 'HiredHunter/1.0' }
     });
