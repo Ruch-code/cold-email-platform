@@ -1,9 +1,10 @@
 /**
  * Multi-Provider AI Service
- * Supports: OpenAI, Experiential Labs (GPT-6 Astra, GPT-5.6 LUNA, DeepSeek V4 Flash, Qwen3.8 27B)
+ * Supports: OpenAI, Experiential Labs, freellmapi
  */
 
 const EXPERIENTIAL_BASE = 'https://platform.experientiallabs.ai/v1';
+const FREELLM_BASE = 'https://api.freellmapi.xyz/v1'; // Update if different
 
 const PROVIDERS = {
   openai: {
@@ -24,6 +25,26 @@ const PROVIDERS = {
       'gpt-5.6-luna': 'gpt-5.6-luna',
       'deepseek-v4-flash': 'deepseek-v4-flash',
       'qwen3.8-27b': 'qwen3.8-27b',
+    },
+    headers: (key) => ({
+      'Authorization': `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    }),
+  },
+  freellm: {
+    baseUrl: FREELLM_BASE,
+    models: {
+      'gpt-4o': 'gpt-4o',
+      'gpt-4o-mini': 'gpt-4o-mini',
+      'gpt-4-turbo': 'gpt-4-turbo',
+      'claude-3.5-sonnet': 'claude-3.5-sonnet',
+      'claude-3-haiku': 'claude-3-haiku',
+      'gemini-1.5-pro': 'gemini-1.5-pro',
+      'gemini-1.5-flash': 'gemini-1.5-flash',
+      'llama-3.1-70b': 'llama-3.1-70b',
+      'llama-3.1-8b': 'llama-3.1-8b',
+      'mixtral-8x7b': 'mixtral-8x7b',
+      'qwen-2.5-72b': 'qwen-2.5-72b',
     },
     headers: (key) => ({
       'Authorization': `Bearer ${key}`,
@@ -65,8 +86,6 @@ async function callAI({ provider, model, messages, temperature = 0.5, maxTokens 
 
 /**
  * Try multiple providers in order until one succeeds
- * @param {Array} providerConfigs - Array of { provider, model, apiKey }
- * @param {Object} params - { messages, temperature, maxTokens }
  */
 async function callAIWithFallback(providerConfigs, { messages, temperature = 0.5, maxTokens = 2000 }) {
   let lastError;
@@ -108,6 +127,18 @@ function buildProviderChain(env) {
       { provider: 'experiential', model: 'gpt-5.6-luna', apiKey: env.EXPERIENTIAL_API_KEY },
       { provider: 'experiential', model: 'deepseek-v4-flash', apiKey: env.EXPERIENTIAL_API_KEY },
       { provider: 'experiential', model: 'qwen3.8-27b', apiKey: env.EXPERIENTIAL_API_KEY },
+    );
+  }
+  
+  // freellmapi (free tier with many models)
+  if (env.FREELLM_API_KEY) {
+    chain.push(
+      { provider: 'freellm', model: 'gpt-4o', apiKey: env.FREELLM_API_KEY },
+      { provider: 'freellm', model: 'claude-3.5-sonnet', apiKey: env.FREELLM_API_KEY },
+      { provider: 'freellm', model: 'gemini-1.5-pro', apiKey: env.FREELLM_API_KEY },
+      { provider: 'freellm', model: 'gpt-4o-mini', apiKey: env.FREELLM_API_KEY },
+      { provider: 'freellm', model: 'claude-3-haiku', apiKey: env.FREELLM_API_KEY },
+      { provider: 'freellm', model: 'gemini-1.5-flash', apiKey: env.FREELLM_API_KEY },
     );
   }
   
