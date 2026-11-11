@@ -81,7 +81,7 @@
           <span class="nav-icon">🗃️</span> Database
         </button>
         <button class="nav-item" data-view="login">
-          <span class="nav-icon">🔐</span> Account
+          <span class="nav-icon">🔐</span> <span id="nav-account-label">Account</span>
         </button>
       </nav>
       <div class="sidebar-footer">
@@ -725,10 +725,10 @@
           <!-- SIGN IN TAB -->
           <form id="login-form" class="auth-form">
             <label>Email
-              <input type="email" id="login-email" placeholder="you@example.com" required />
+              <input type="email" id="login-email" autocomplete="username" placeholder="you@example.com" required />
             </label>
             <label>Password
-              <input type="password" id="login-password" placeholder="••••••••" required />
+              <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••" required />
             </label>
             <button class="btn primary" type="submit">Sign In</button>
             <div class="form-msg" id="login-msg"></div>

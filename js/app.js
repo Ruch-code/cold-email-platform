@@ -182,6 +182,8 @@ function showLoggedIn(user) {
     $$('.auth-tab').forEach(t => t.classList.add('hidden'));
     $('#user-name').textContent = userData.name;
     $('#user-email').textContent = userData.email;
+    const navLabel = $('#nav-account-label');
+    if (navLabel) navLabel.textContent = userData.name;
     $('#user-status').textContent = 'Approved';
     $('#user-status').className = 'status-badge approved';
     
@@ -230,6 +232,8 @@ function showAccessStatus(access) {
 }
 
 function showLoggedOut() {
+  const navLabel = $('#nav-account-label');
+  if (navLabel) navLabel.textContent = 'Account';
   localStorage.removeItem('hh_user');
   localStorage.removeItem('hh_session');
   $('#logged-in-view').classList.add('hidden');
@@ -266,7 +270,8 @@ $('#login-form').addEventListener('submit', async (e) => {
     saveSession(data.session);
     showLoggedIn(data.user);
     await DB.loadFromSupabase();
-    renderDashboard();
+    switchView('dashboard');
+    $$('.nav-item').forEach((x) => x.classList.toggle('active', x.dataset.view === 'dashboard'));
     toast('Welcome back!');
   } catch (err) {
     msg.className = 'form-msg err';
