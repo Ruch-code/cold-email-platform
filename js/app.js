@@ -126,12 +126,39 @@ async function checkAuthState() {
   else showLoggedOut();
 }
 
+function getSession() {
+  try { return JSON.parse(localStorage.getItem('hh_session') || 'null'); } catch { return null; }
+}
+
+function saveSession(session) {
+  if (session && session.access_token) localStorage.setItem('hh_session', JSON.stringify({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  }));
+}
+
 async function getCurrentUser() {
+  const session = getSession();
+  if (!session) return null;
   try {
-    const res = await fetch(`${API_BASE}/auth-me`);
+    const res = await fetch(`${API_BASE}/auth-me`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token })
+    });
     const data = await res.json();
-    return data.user || null;
-  } catch { return null; }
+    if (data.session) saveSession(data.session);
+    if (!data.user) {
+      // Network ok but token invalid and not refreshable: clear it
+      localStorage.removeItem('hh_session');
+      return null;
+    }
+    return data.user;
+  } catch {
+    // Offline or server hiccup: keep the user signed in from cache
+    const cached = getCurrentUserSync();
+    return cached ? { email: cached.email, user_metadata: { name: cached.name } } : null;
+  }
 }
 
 function showLoggedIn(user) {
@@ -204,6 +231,7 @@ function showAccessStatus(access) {
 
 function showLoggedOut() {
   localStorage.removeItem('hh_user');
+  localStorage.removeItem('hh_session');
   $('#logged-in-view').classList.add('hidden');
   $('#access-status-view').classList.add('hidden');
   $('#custom-sources-panel').classList.add('hidden');
@@ -235,6 +263,7 @@ $('#login-form').addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
+    saveSession(data.session);
     showLoggedIn(data.user);
     await DB.loadFromSupabase();
     renderDashboard();
@@ -276,7 +305,7 @@ $('#signup-form').addEventListener('submit', async (e) => {
 
 $('#btn-logout').addEventListener('click', async () => {
   try {
-    await fetch(`${API_BASE}/auth-logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    await fetch(`${API_BASE}/auth-logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access_token: getSession()?.access_token }) });
     showLoggedOut();
     DB.clear();
     renderDashboard();
@@ -288,7 +317,7 @@ $('#btn-logout').addEventListener('click', async () => {
 
 $('#btn-admin-logout').addEventListener('click', async () => {
   try {
-    await fetch(`${API_BASE}/auth-logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    await fetch(`${API_BASE}/auth-logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access_token: getSession()?.access_token }) });
     showLoggedOut();
     DB.clear();
     renderDashboard();
@@ -300,7 +329,7 @@ $('#btn-admin-logout').addEventListener('click', async () => {
 
 $('#btn-status-logout').addEventListener('click', async () => {
   try {
-    await fetch(`${API_BASE}/auth-logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    await fetch(`${API_BASE}/auth-logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access_token: getSession()?.access_token }) });
     showLoggedOut();
     DB.clear();
     renderDashboard();
