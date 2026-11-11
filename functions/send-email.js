@@ -19,9 +19,9 @@ exports.handler = async (event) => {
 
   const { to, subject, body: text, toName } = body;
   const from = body.from || process.env.EMAIL_FROM;
-  const apiKey = process.env.RESEND_API_KEY || body.apiKey;
+  const apiKey = process.env.RESEND_API_KEY;
 
-  if (!apiKey) return error('Resend API key missing. Set RESEND_API_KEY env var or save one in settings.');
+  if (!apiKey) return error('Resend API key missing. Set RESEND_API_KEY in Vercel environment variables.');
   if (!to) return error('Recipient email (to) is required');
   if (!from) return error('Sender email (from) is required');
   if (!subject || !text) return error('subject and body are required');

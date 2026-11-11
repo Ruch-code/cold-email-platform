@@ -12,7 +12,7 @@ const DB = (() => {
       scraped: [],
       recruiters: [],
       emails: [],
-      settings: { resendKey: '', openaiKey: '', senderName: '', senderEmail: '', headline: '' },
+      settings: { senderName: '', senderEmail: '', headline: '' },
       resume: null,
       alerts: [],
       cover_letters: [],

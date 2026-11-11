@@ -35,7 +35,7 @@ exports.handler = async (event) => {
     );
   }
 
-  const apiKey = process.env.RESEND_API_KEY || body.resendKey;
+  const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey && !options.dry_run) return error('Resend API key required for sending');
 
   const { Resend } = require('resend');

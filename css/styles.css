@@ -1433,3 +1433,21 @@ textarea { resize: vertical; line-height: 1.5; }
 
 /* Hide Netlify badge */
 #netlify-badge, .netlify-badge, [data-netlify-badge], .netlify-identity-widget { display: none !important; }
+
+/* Outreach tracker */
+#tracker .panel { margin-bottom: 20px; }
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.pipeline { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 12px; overflow-x: auto; }
+.pipe-col { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 10px; min-height: 80px; }
+.pipe-head { font-weight: 600; font-size: 13px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.pipe-card { background: rgba(255,255,255,.05); border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+.pipe-card .card-title { font-size: 13px; }
+.pipe-card .card-sub { font-size: 11px; margin-bottom: 6px; }
+.pipe-select { width: 100%; font-size: 12px; padding: 4px; border-radius: 6px; background: transparent; color: inherit; border: 1px solid rgba(255,255,255,.15); }
+.pipe-select option { color: #111; }
+.reply-headline { margin: 0 0 12px; }
+.reply-headline strong { font-size: 24px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.stats-table th, .stats-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
+@media (max-width: 800px) { .pipeline { grid-template-columns: repeat(5, 160px); } }

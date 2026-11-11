@@ -97,9 +97,7 @@ async function renderDashboard() {
   $('#stat-scraped').textContent = scraped.length;
   $('#stat-emails').textContent = emails.length;
   $('#stat-contacted').textContent = uniqueRecruiterCount(emails);
-  const canEmail = await DB.getAll('settings');
-  $('#set-resend').value = canEmail.resendKey || '';
-  $('#set-openai').value = canEmail.openaiKey || '';
+  renderTracker(emails);
 }
 
 function uniqueRecruiterCount(emails) {
@@ -107,17 +105,104 @@ function uniqueRecruiterCount(emails) {
 }
 
 /* ---------- SETTINGS ---------- */
-$('#settings-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const s = $('#settings-msg');
-  await DB.saveSettings({
-    resendKey: $('#set-resend').value.trim(),
-    openaiKey: $('#set-openai').value.trim(),
+// API keys now live only in Vercel environment variables (RESEND_API_KEY etc.).
+// Wipe any keys an older version stored in this browser.
+(function purgeBrowserKeys() {
+  try {
+    const k = 'hiredhunter_v2_db';
+    const st = JSON.parse(localStorage.getItem(k) || 'null');
+    if (st && st.settings && (st.settings.resendKey || st.settings.openaiKey)) {
+      delete st.settings.resendKey; delete st.settings.openaiKey;
+      localStorage.setItem(k, JSON.stringify(st));
+    }
+  } catch { /* ignore */ }
+})();
+
+/* ---------- OUTREACH TRACKER (follow-ups, pipeline, reply stats) ---------- */
+const STAGES = ['Applied', 'Replied', 'Interview', 'Offer', 'Rejected'];
+const FOLLOW_UP_DAYS = 5;
+
+function getTracking() {
+  try { return JSON.parse(localStorage.getItem('hh_tracking') || '{}'); } catch { return {}; }
+}
+function setTracking(id, patch) {
+  const t = getTracking();
+  t[id] = { ...(t[id] || {}), ...patch };
+  localStorage.setItem('hh_tracking', JSON.stringify(t));
+}
+function stageOf(e, t) { return (t[e.id] && t[e.id].status) || 'Applied'; }
+function daysSince(iso) { return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); }
+
+function followUpDraft(e) {
+  const s = DB.collection.settings || {};
+  const name = s.senderName || '';
+  const role = e.role || 'the open role';
+  const company = e.company || 'your team';
+  return `Subject: Re: ${e.subject || role}\n\nHi ${e.toName || 'there'},\n\nI wanted to follow up on my note from last week about the ${role} position at ${company}. I remain very interested and would welcome the chance to discuss how my background could support the team.\n\nPlease let me know if there is a convenient time to connect, or if there is someone else I should reach out to.\n\nThank you for your time.\n\nBest regards,\n${name}`;
+}
+
+function draftFollowUp(e) {
+  $('#email-to').value = e.to || '';
+  $('#email-recipient').value = e.toName || '';
+  $('#email-company').value = e.company || '';
+  $('#email-role').value = e.role || '';
+  $('#email-body').value = followUpDraft(e);
+  setTracking(e.id, { followedUpAt: new Date().toISOString() });
+  switchView('email');
+  $$('.nav-item').forEach((x) => x.classList.toggle('active', x.dataset.view === 'email'));
+  toast('Follow-up drafted. Review it, then send.');
+}
+
+function renderTracker(emails) {
+  const wrap = $('#tracker');
+  if (!wrap) return;
+  const t = getTracking();
+  const sent = emails.filter((e) => !e.pending && e.sentAt);
+
+  // Follow-ups due: Applied, sent 5+ days ago, not followed up yet
+  const due = sent.filter((e) => stageOf(e, t) === 'Applied' && daysSince(e.sentAt) >= FOLLOW_UP_DAYS && !(t[e.id] && t[e.id].followedUpAt));
+  const fu = $('#followups');
+  fu.innerHTML = due.length ? '' : '<p class="muted small">No follow-ups due. Recruiters with no reply after 5 days will appear here.</p>';
+  due.forEach((e) => {
+    const c = document.createElement('div');
+    c.className = 'card';
+    c.innerHTML = `<div class="card-top"><div><div class="card-title">${esc(e.company || e.to)}${e.role ? ' - ' + esc(e.role) : ''}</div><div class="card-sub">${esc(e.to)} &middot; sent ${daysSince(e.sentAt)} days ago</div></div><div class="row-actions"><button class="btn small primary" data-a="draft">Draft follow-up</button> <button class="btn small" data-a="replied">They replied</button></div></div>`;
+    c.querySelector('[data-a="draft"]').addEventListener('click', () => draftFollowUp(e));
+    c.querySelector('[data-a="replied"]').addEventListener('click', () => { setTracking(e.id, { status: 'Replied' }); renderTracker(emails); });
+    fu.appendChild(c);
   });
-  s.className = 'form-msg ok';
-  s.textContent = '✓ Keys saved to local database.';
-  toast('API keys saved');
-});
+
+  // Pipeline board
+  const board = $('#pipeline');
+  board.innerHTML = '';
+  STAGES.forEach((stage) => {
+    const items = sent.filter((e) => stageOf(e, t) === stage);
+    const col = document.createElement('div');
+    col.className = 'pipe-col';
+    col.innerHTML = `<div class="pipe-head">${stage} <span class="tag">${items.length}</span></div>`;
+    items.forEach((e) => {
+      const card = document.createElement('div');
+      card.className = 'pipe-card';
+      const opts = STAGES.map((st) => `<option${st === stage ? ' selected' : ''}>${st}</option>`).join('');
+      card.innerHTML = `<div class="card-title">${esc(e.company || e.to)}</div><div class="card-sub">${esc(e.role || '')}</div><select class="pipe-select">${opts}</select>`;
+      card.querySelector('select').addEventListener('change', (ev) => { setTracking(e.id, { status: ev.target.value }); renderTracker(emails); });
+      col.appendChild(card);
+    });
+    board.appendChild(col);
+  });
+
+  // Reply-rate stats
+  const replied = (e) => stageOf(e, t) !== 'Applied';
+  const rate = (list) => list.length ? Math.round(100 * list.filter(replied).length / list.length) : 0;
+  const group = (key) => {
+    const m = {};
+    sent.forEach((e) => { const k = (e[key] || 'Unknown').trim() || 'Unknown'; (m[k] = m[k] || []).push(e); });
+    return Object.entries(m).sort((a, b) => b[1].length - a[1].length).slice(0, 8)
+      .map(([k, list]) => `<tr><td>${esc(k)}</td><td>${list.length}</td><td>${list.filter(replied).length}</td><td>${rate(list)}%</td></tr>`).join('');
+  };
+  const table = (title, key) => `<div><h4>${title}</h4><table class="stats-table"><thead><tr><th>${title.replace('By ', '')}</th><th>Sent</th><th>Replies</th><th>Rate</th></tr></thead><tbody>${group(key) || '<tr><td colspan="4" class="muted small">No data yet</td></tr>'}</tbody></table></div>`;
+  $('#reply-stats').innerHTML = `<p class="reply-headline"><strong>${rate(sent)}%</strong> overall reply rate (${sent.filter(replied).length} of ${sent.length} emails)</p><div class="stats-grid">${table('By company', 'company')}${table('By role', 'role')}</div>`;
+}
 
 /* ---------- AUTH ---------- */
 async function checkAuthState() {
@@ -565,7 +650,7 @@ $('#email-send').addEventListener('click', async () => {
   const subject = body.split('\n')[0].replace(/^Subject:\s*/i, '') || `Application — ${$('#email-role').value}`;
   try {
     const s = await DB.getAll('settings');
-    const res = await fetch(`${API_BASE}/send-email`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, from: $('#email-from').value || s.senderEmail, subject, body, toName: $('#email-recipient').value, apiKey: s.resendKey }) });
+    const res = await fetch(`${API_BASE}/send-email`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, from: $('#email-from').value || s.senderEmail, subject, body, toName: $('#email-recipient').value }) });
     const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Send failed');
     await DB.insert('emails', { id: uid(), to, toName: $('#email-recipient').value, company: $('#email-company').value, role: $('#email-role').value, subject, body, sentAt: new Date().toISOString() });
     msg.className = 'form-msg ok'; msg.textContent = '✓ Sent!'; toast('Email sent ✓'); renderEmailLog(); refreshStatCounts();
@@ -1065,7 +1150,7 @@ function easeOutCubic(t) {
 }
 
 /* ---------- UTIL ---------- */
-function esc(s) { return String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({ '&': '&', '<': '<', '>': '>', '"': '"' }[c])); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
 function uid() { return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
