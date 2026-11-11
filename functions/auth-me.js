@@ -8,15 +8,25 @@ exports.handler = async (event) => {
   if (!supabase) return json({ user: null });
 
   let token = event.headers.authorization?.replace('Bearer ', '');
-  if (!token && event.httpMethod === 'POST') {
-    try { const body = JSON.parse(event.body || '{}'); token = body.access_token; }
-    catch { /* ignore */ }
+  let refreshToken;
+  if (event.httpMethod === 'POST') {
+    try {
+      const body = JSON.parse(event.body || '{}');
+      token = token || body.access_token;
+      refreshToken = body.refresh_token;
+    } catch { /* ignore */ }
   }
 
-  if (!token) return json({ user: null });
+  if (token) {
+    const { data, error: err } = await supabase.auth.getUser(token);
+    if (!err && data?.user) return json({ user: data.user });
+  }
 
-  const { data: { user }, error: err } = await supabase.auth.getUser(token);
-  if (err) return json({ user: null });
+  // Access token missing or expired: try the refresh token
+  if (refreshToken) {
+    const { data, error: err } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+    if (!err && data?.user) return json({ user: data.user, session: data.session });
+  }
 
-  return json({ user });
+  return json({ user: null });
 };
