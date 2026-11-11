@@ -20,6 +20,7 @@ import * as salaryEstimate from '../functions/salary-estimate.js';
 import * as scrape from '../functions/scrape.js';
 import * as sendEmail from '../functions/send-email.js';
 import * as tailorResume from '../functions/tailor-resume.js';
+import * as tracking from '../functions/tracking.js';
 
 const handlers = {
   'admin-decision': adminDecision.handler,
@@ -43,6 +44,7 @@ const handlers = {
   'scrape': scrape.handler,
   'send-email': sendEmail.handler,
   'tailor-resume': tailorResume.handler,
+  'tracking': tracking.handler,
 };
 
 function getHandler(path) {

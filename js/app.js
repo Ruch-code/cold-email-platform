@@ -129,6 +129,42 @@ function setTracking(id, patch) {
   const t = getTracking();
   t[id] = { ...(t[id] || {}), ...patch };
   localStorage.setItem('hh_tracking', JSON.stringify(t));
+  pushTracking({ [id]: t[id] });
+}
+
+// Sync tracking with the user's account so it follows them across devices
+async function trackingRequest(payload) {
+  const session = getSession();
+  if (!session || !session.refresh_token) return null;
+  try {
+    const res = await fetch(`${API_BASE}/tracking`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token, ...payload })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.session) saveSession(data.session);
+    return data.tracking || null;
+  } catch { return null; }
+}
+
+async function pushTracking(changes) {
+  const merged = await trackingRequest({ tracking: changes });
+  if (merged) localStorage.setItem('hh_tracking', JSON.stringify({ ...getTracking(), ...merged }));
+}
+
+async function syncTracking() {
+  const remote = await trackingRequest({});
+  if (!remote) return;
+  const local = getTracking();
+  // Upload anything only this browser knows about, then take the merged copy
+  const localOnly = {};
+  for (const [id, v] of Object.entries(local)) {
+    if (JSON.stringify(remote[id]) !== JSON.stringify(v)) localOnly[id] = { ...(remote[id] || {}), ...v };
+  }
+  const merged = Object.keys(localOnly).length ? await trackingRequest({ tracking: localOnly }) : remote;
+  localStorage.setItem('hh_tracking', JSON.stringify(merged || { ...remote, ...local }));
 }
 function stageOf(e, t) { return (t[e.id] && t[e.id].status) || 'Applied'; }
 function daysSince(iso) { return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); }
@@ -317,6 +353,7 @@ function showAccessStatus(access) {
 }
 
 function showLoggedOut() {
+  localStorage.removeItem('hh_tracking');
   const navLabel = $('#nav-account-label');
   if (navLabel) navLabel.textContent = 'Account';
   localStorage.removeItem('hh_user');
@@ -355,6 +392,7 @@ $('#login-form').addEventListener('submit', async (e) => {
     saveSession(data.session);
     showLoggedIn(data.user);
     await DB.loadFromSupabase();
+    await syncTracking();
     switchView('dashboard');
     $$('.nav-item').forEach((x) => x.classList.toggle('active', x.dataset.view === 'dashboard'));
     toast('Welcome back!');
@@ -1249,6 +1287,7 @@ function stopStoryCycle() {
   // Show landing page for non-logged-in users, dashboard for logged-in
   const user = await getCurrentUser();
   if (user) {
+    await syncTracking();
     await renderDashboard();
     await renderEmailLog();
   } else {
